@@ -106,11 +106,15 @@ class Builder {
   }
 }
 
-/** Multiply a face's sRGB colour by an instance tint and convert to linear. */
+/**
+ * A face's colour times an instance tint. `setHex` already converts the sRGB
+ * hex into the linear working space, so nothing here converts again; doing
+ * so is how the old palette ended up four times too dark.
+ */
 function linearColor(hex: number, tint: number | undefined, out: THREE.Color): THREE.Color {
   out.setHex(hex);
   if (tint !== undefined) out.multiply(new THREE.Color(tint));
-  return out.convertSRGBToLinear();
+  return out;
 }
 
 /**
@@ -174,13 +178,11 @@ export function buildVoxelGeometry(blocks: readonly BlockInstance[], bounds?: Me
           if (f.name === "up" && varied) {
             cols[i].copy(varied);
             if (b.tint !== undefined) cols[i].multiply(tint.setHex(b.tint));
-            cols[i].convertSRGBToLinear();
           } else if (f.name !== "up" && f.name !== "down" && def.sideFade) {
             // Grass drapes: the upper edge carries the top colour down over the dirt.
             linearColor(faceColor(def, f.name), b.tint, side);
             const over = varied ? cols[i].copy(varied) : cols[i].setHex(def.colors.top);
             if (b.tint !== undefined) over.multiply(tint.setHex(b.tint));
-            over.convertSRGBToLinear();
             cols[i].copy(sv > 0 ? over.multiplyScalar(0.82) : side);
           } else {
             linearColor(faceColor(def, f.name), b.tint, cols[i]);

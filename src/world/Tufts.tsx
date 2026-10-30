@@ -43,7 +43,12 @@ function bladeTexture(): THREE.Texture {
   return texture;
 }
 
-/** Two crossed quads, bottom at y=0, with a darker foot baked into vertex colours. */
+/**
+ * Two crossed quads, bottom at y=0, with a darker foot baked into vertex
+ * colours. Each quad is emitted twice with opposite winding so the material
+ * can stay single-sided: a double-sided material flips the normal on back
+ * faces, and these blades must always be lit as if they faced the sky.
+ */
 function crossGeometry(): THREE.BufferGeometry {
   const w = 0.6;
   const h = 0.3;
@@ -60,6 +65,7 @@ function crossGeometry(): THREE.BufferGeometry {
     // Lit like the lawn under them, not like a wall: every blade faces up.
     for (let i = 0; i < 4; i++) normals.push(0, 1, 0);
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
   };
   quad(-w / 2, 0, w / 2, 0);
   quad(0, -w / 2, 0, w / 2);
@@ -110,7 +116,7 @@ export function Tufts({ def }: { def: DioramaDef }) {
   const texture = useMemo(() => bladeTexture(), []);
   const geometry = useMemo(() => crossGeometry(), []);
   const material = useMemo(() => {
-    const m = new THREE.MeshLambertMaterial({ alphaMap: texture, alphaTest: 0.5, side: THREE.DoubleSide, vertexColors: true });
+    const m = new THREE.MeshLambertMaterial({ alphaMap: texture, alphaTest: 0.5, vertexColors: true });
     // The sway clock lives on the material so the frame loop can reach it through the mesh.
     const uTime = { value: 0 };
     m.userData.uTime = uTime;

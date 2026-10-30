@@ -11,13 +11,13 @@ import { DEFAULT_BOUNDS, mixTint, once, SceneBuilder, SUBJECT } from "./build";
 import type { DioramaDef, Spot } from "./types";
 
 /** The pool the fall lands in, right behind the subject. */
-const POOL = { x: 0, z: -11, w: 5, d: 4 };
+const POOL = { x: 1, z: -11, w: 5, d: 4 };
 /** The brook that drains the pool off to the right. */
-const BROOK = { x: 5, z: -9, w: 9, d: 2 };
+const BROOK = { x: 6, z: -9, w: 8, d: 2 };
 /** The channel on the upper terrace that feeds the fall. */
-const CHANNEL = { x: 1, z: -22, w: 3, d: 11 };
+const CHANNEL = { x: 2, z: -22, w: 3, d: 11 };
 /** Stone shoulders either side of the channel where it reaches the drop. */
-const OUTCROP = { x: -1, z: -16, w: 7, d: 5 };
+const OUTCROP = { x: 0, z: -16, w: 7, d: 5 };
 
 const TREES: Array<[number, number, number]> = [
   // x, z, canopy radius
@@ -93,14 +93,14 @@ export function buildMeadow(): DioramaDef {
 
   // Loose stones at the lip of the fall and round the pool.
   const stones: Array<[number, number, number]> = [
-    [0, -12, 2],
-    [4, -12, 2],
-    [-1, -12, 1],
-    [5, -12, 1],
-    [-1, -8, 0],
-    [5, -11, 0],
-    [6, -7, 0],
-    [-2, -11, 0],
+    [1, -12, 2],
+    [5, -12, 2],
+    [0, -12, 1],
+    [6, -12, 1],
+    [0, -8, 0],
+    [6, -11, 0],
+    [7, -7, 0],
+    [-1, -11, 0],
   ];
   for (const [rx, rz, ry] of stones) {
     if (ry === 0) s.walkable(rx, rz, false);
@@ -114,7 +114,7 @@ export function buildMeadow(): DioramaDef {
   const bushes: Array<[number, number]> = [
     [-7, -9],
     [-6, -9],
-    [8, -4],
+    [9, -6],
     [-4, -12],
     [7, -13],
     [9, -6],
@@ -151,18 +151,20 @@ export function buildMeadow(): DioramaDef {
     forage_1: { x: 2.5, z: -3.5, facing: Math.PI / 2 },
     forage_2: { x: -2.5, z: -8.5, facing: -Math.PI / 2 + 0.6 },
     sleep_1: { x: -3.5, z: -3.5, facing: Math.PI + 0.5 },
-    swim_1: { x: 2.5, z: -9.5, facing: Math.PI + 0.3, medium: "water" },
+    swim_1: { x: 3.5, z: -9.5, facing: Math.PI + 0.3, medium: "water" },
     air_1: { x: 0.5, z: -7.5, y: 3, facing: Math.PI, medium: "air" },
     ambient_1: { x: -5.5, z: -2.5, facing: Math.PI / 2 },
     ambient_2: { x: 4.5, z: -5.5, facing: -Math.PI / 2 },
   };
   for (const spot of Object.values(spots)) s.reserve(spot);
 
-  // Flowers thicken toward the front corners, white and pink with a few yellow.
+  // Flowers thicken toward the front and the centre line the portrait
+  // camera looks down, white and pink with a few yellow.
   s.forEachCell((x, z) => {
-    if (!s.isWalkable(x, z) || s.isReserved(x, z)) return;
+    if (!s.isWalkable(x, z) || s.isReserved(x, z) || s.inFront(x, z)) return;
     const front = z > -3;
-    const chance = front ? 0.16 : z > -9 ? 0.08 : 0.04;
+    const centre = Math.abs(x - SUBJECT.x) < 4 && !front;
+    const chance = (front ? 0.1 : z > -9 ? 0.08 : 0.04) * (centre ? 2 : 1);
     if (s.rand() >= chance) return;
     const r = s.rand();
     const kind = r < 0.5 ? "flower_white" : r < 0.82 ? "flower_pink" : "flower_yellow";
@@ -175,7 +177,7 @@ export function buildMeadow(): DioramaDef {
     spots,
     spawn: spots.play_1,
     lights: { sun: 1, hemi: 1, fogNear: 22, fogFar: 64 },
-    backdrop: { style: "trees", sky: 0x8fd0ff, horizon: 0xd8ecff, silhouette: 0x2f7a3a, z: -25, height: 16 },
+    backdrop: { style: "trees", sky: 0x8fd0ff, horizon: 0xcfe8d8, silhouette: 0x3f8f3c, z: -25, height: 16 },
     framing: { subject: SUBJECT },
     particles: "none",
   });

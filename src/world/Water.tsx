@@ -88,12 +88,12 @@ void main() {
   float y = vWorld.y + uTime * 2.4;
   float s1 = hash(floor(vec2(vWorld.x * 6.0, y * 2.5)));
   float s2 = hash(floor(vec2(vWorld.x * 10.0 + 3.0, (vWorld.y + uTime * 3.1) * 4.0)));
-  float streak = smoothstep(0.3, 0.75, s1 * 0.6 + s2 * 0.4);
-  float base = 1.0 - smoothstep(0.0, 0.35, vUv.y);
-  vec3 color = mix(uShallow * 0.85, vec3(0.95, 0.98, 1.0), streak * 0.8 + base * 0.6) * uAmbient;
-  color += uSunColor * 0.12 * streak;
-  float alpha = 0.62 + 0.3 * streak + base * 0.2;
-  alpha *= smoothstep(1.0, 0.92, vUv.y);
+  float streak = smoothstep(0.35, 0.8, s1 * 0.6 + s2 * 0.4);
+  float base = 1.0 - smoothstep(0.0, 0.3, vUv.y);
+  vec3 color = mix(uShallow * 0.7, vec3(0.78, 0.86, 0.92), streak * 0.7 + base * 0.5) * uAmbient;
+  color += uSunColor * 0.08 * streak;
+  float alpha = 0.5 + 0.3 * streak + base * 0.2;
+  alpha *= smoothstep(1.0, 0.9, vUv.y);
   gl_FragColor = vec4(color, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -128,7 +128,7 @@ function useLiveWater(): React.RefObject<THREE.Mesh | null> {
     u.uTime.value = state.clock.elapsedTime;
     (u.uSunDir.value as THREE.Vector3).copy(l.sunDir);
     (u.uSunColor.value as THREE.Color).copy(l.sunColor).multiplyScalar(Math.min(1.2, l.sunIntensity * 0.45));
-    (u.uAmbient.value as THREE.Color).copy(l.ambient).multiplyScalar(1.25);
+    (u.uAmbient.value as THREE.Color).copy(l.ambient).multiplyScalar(0.8);
   });
   return mesh;
 }
@@ -186,7 +186,7 @@ export function Falls({ def }: { def: FallsDef }) {
   return (
     <group>
       <mesh ref={mesh} position={[def.x + def.w / 2, def.bottom + height / 2, def.z + 0.03]} renderOrder={3}>
-        <planeGeometry args={[def.w, height]} />
+        <planeGeometry args={[def.w - 0.3, height]} />
         <shaderMaterial vertexShader={VERTEX} fragmentShader={FALLS_FRAGMENT} uniforms={uniforms} transparent depthWrite={false} fog />
       </mesh>
       <points ref={points} geometry={geometry} frustumCulled={false} renderOrder={4}>

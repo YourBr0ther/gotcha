@@ -21,13 +21,13 @@ It is not a game you win. It is a creature you look after.
 
 <p align="center">
   <img src="docs/screenshots/home.png" width="19%" alt="The Home screen">
-  <img src="docs/screenshots/home-feed-sheet.png" width="19%" alt="The Feed sheet">
+  <img src="docs/screenshots/meadow-eevee.png" width="19%" alt="Eevee in the lit meadow">
   <img src="docs/screenshots/forest-pikachu.png" width="19%" alt="Pikachu in the forest">
   <img src="docs/screenshots/beach-magikarp.png" width="19%" alt="Magikarp at the beach">
   <img src="docs/screenshots/cave-zubat.png" width="19%" alt="Zubat in the cave">
 </p>
 
-<p align="center"><sub>The Home screen and Feed sheet, and three of the six dioramas, all rendered live from the Cobblemon assets.</sub></p>
+<p align="center"><sub>The Home screen, the meadow at noon, and three more of the six dioramas, all rendered live from the Cobblemon assets.</sub></p>
 
 ## What you get
 

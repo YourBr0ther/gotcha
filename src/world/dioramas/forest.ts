@@ -101,8 +101,8 @@ export function buildForest(): DioramaDef {
     id: "forest",
     spots,
     spawn: spots.play_1,
-    lights: { sun: 0.85, hemi: 0.8, fogNear: 16, fogFar: 50 },
-    backdrop: { style: "trees", sky: 0x7fc4ff, horizon: 0xa9d8a8, silhouette: 0x1f4a24, z: -25, height: 18 },
+    lights: { sun: 1, hemi: 1.15, fogNear: 16, fogFar: 50 },
+    backdrop: { style: "trees", sky: 0x7fc4ff, horizon: 0xa9d8a8, silhouette: 0x2c6a30, z: -25, height: 18 },
     framing: { subject: SUBJECT },
     particles: "none",
   });

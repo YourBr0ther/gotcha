@@ -48,9 +48,9 @@ export function paintBackdrop(def: BackdropDef): HTMLCanvasElement {
   const mid = sil.clone().lerp(hor, 0.22);
   const near = sil.clone().lerp(hor, 0.05);
   const rows: Array<{ color: THREE.Color; base: number; scale: number; blur: number }> = [
-    { color: far, base: HEIGHT * 0.5, scale: 0.75, blur: 7 },
-    { color: mid, base: HEIGHT * 0.64, scale: 1, blur: 5 },
-    { color: near, base: HEIGHT * 0.8, scale: 1.3, blur: 3 },
+    { color: far, base: HEIGHT * 0.5, scale: 0.75, blur: 4 },
+    { color: mid, base: HEIGHT * 0.64, scale: 1, blur: 2 },
+    { color: near, base: HEIGHT * 0.8, scale: 1.3, blur: 1 },
   ];
 
   for (const row of rows) {
@@ -97,10 +97,11 @@ export function paintBackdrop(def: BackdropDef): HTMLCanvasElement {
         break;
       }
       case "palms": {
-        // Sea to the horizon, a low island, a few fans.
+        // Sea to the horizon with a low island on the far row; the nearer
+        // rows are a sand bar with a few fans on it.
         ctx.fillStyle = `#${row.color.getHexString()}`;
+        ctx.fillRect(0, row.base, WIDTH, HEIGHT);
         if (row.scale < 1) {
-          ctx.fillRect(0, row.base, WIDTH, HEIGHT);
           blob(ctx, WIDTH * 0.25, row.base + 6, 60);
           blob(ctx, WIDTH * 0.78, row.base + 4, 40);
         } else {

@@ -56,7 +56,7 @@ export function cameraPose(height: number, aspect: number, framing?: Framing & {
   const position = new THREE.Vector3(s.x, Math.max(0.42, elevation + lift), s.z + distance);
   // Aim a little below the horizon so the feet sit about a fifth up the
   // frame and the far trees fill the top third.
-  const targetY = THREE.MathUtils.lerp(0.1 + 0.5 * k, 0.1 + 0.5 * k, t) + lift;
+  const targetY = THREE.MathUtils.lerp(0.02 + 0.5 * k, 0.06 + 0.5 * k, t) + lift;
   const target = new THREE.Vector3(s.x, targetY, s.z - 6);
   return { position, target, fov: cameraFov(aspect) };
 }

@@ -58,7 +58,7 @@ describe("meadow", () => {
   it("keeps the pool, the brook and the trees off the land navmesh", () => {
     const d = meadow();
     for (const [x, z] of [
-      [2.5, -9.5],
+      [3.5, -9.5],
       [8.5, -8.5],
       [-12.5, -5.5],
     ]) {
@@ -83,7 +83,7 @@ describe("meadow", () => {
     expect(f.top).toBe(channel.y);
     expect(f.bottom).toBeLessThan(d.water[0].y);
     // The swimmer's pool is one body with the brook, so the swim grid connects them.
-    const pool = worldToCell(d.swimNav, 2.5, -9.5);
+    const pool = worldToCell(d.swimNav, 3.5, -9.5);
     const brook = worldToCell(d.swimNav, 12.5, -8.5);
     expect(findPath(d.swimNav, pool, brook)).not.toBeNull();
     // Land spots on both sides of the water still reach each other around it.

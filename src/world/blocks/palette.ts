@@ -85,9 +85,10 @@ export const BLOCKS: Record<BlockId, BlockDef> = {
   tuft: { colors: { top: 0x86c84c, side: 0x6ab540 }, size: [0.55, 0.35, 0.55] },
   fern: { colors: { top: 0x3f9a3a, side: 0x2f7a2c }, size: [0.7, 0.5, 0.7], castShadow: true },
   stem: { colors: { top: 0x4f9a35, side: 0x4f9a35 }, size: [0.12, 0.45, 0.12] },
-  flower_white: { colors: { top: 0xfff8ee, side: 0xf0e8d8, bottom: 0xe8dcc4 }, size: [0.46, 0.14, 0.46], castShadow: true },
-  flower_pink: { colors: { top: 0xff7fb4, side: 0xee5f98, bottom: 0xd44e84 }, size: [0.46, 0.14, 0.46], castShadow: true },
-  flower_yellow: { colors: { top: 0xffd64a, side: 0xf3c43a, bottom: 0xe8a81e }, size: [0.32, 0.18, 0.32], castShadow: true },
+  // Daisy petals are a thin bar; two crossed make the flower, the centre sits on top.
+  flower_white: { colors: { top: 0xfff8ee, side: 0xf0e8d8, bottom: 0xe8dcc4 }, size: [0.5, 0.1, 0.17], castShadow: true },
+  flower_pink: { colors: { top: 0xff7fb4, side: 0xee5f98, bottom: 0xd44e84 }, size: [0.5, 0.1, 0.17], castShadow: true },
+  flower_yellow: { colors: { top: 0xffd64a, side: 0xf3c43a, bottom: 0xe8a81e }, size: [0.28, 0.2, 0.28], castShadow: true },
   flower_centre: { colors: { top: 0xffd24a, side: 0xf0b83a }, size: [0.18, 0.1, 0.18] },
   mushroom_stem: { colors: { top: 0xf0e6d2, side: 0xe0d4bc }, size: [0.22, 0.45, 0.22] },
   mushroom_red: { colors: { top: 0xe0413a, side: 0xc8332c, bottom: 0xf5ead8 }, size: [0.55, 0.28, 0.55], castShadow: true },
@@ -140,9 +141,8 @@ export function createBlockGeometry(id: BlockId): THREE.BoxGeometry {
   const colors = new Float32Array(24 * 3);
   const tmp = new THREE.Color();
   BOX_FACE_ORDER.forEach((face, i) => {
+    // setHex converts the sRGB hex into the linear working space already.
     tmp.setHex(faceColor(def, face));
-    // Vertex colours are read as linear; convert from the sRGB hex.
-    tmp.convertSRGBToLinear();
     for (let v = 0; v < 4; v++) {
       const o = (i * 4 + v) * 3;
       colors[o] = tmp.r;

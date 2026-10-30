@@ -15,14 +15,15 @@ describe("lightingAt", () => {
     expect(l.daylight).toBe(1);
   });
 
-  it("is brightest and highest at noon with a near-white sun", () => {
+  it("is brightest and highest at noon with a warm white sun", () => {
     const l = at(12);
     expect(l.elevation).toBeGreaterThan(55);
     expect(Math.abs(l.sunDir.x)).toBeLessThan(0.05);
     expect(l.sunIntensity).toBeGreaterThanOrEqual(at(8).sunIntensity);
     expect(l.sunIntensity).toBeGreaterThanOrEqual(at(18).sunIntensity);
-    // Linear channels: 0xe1 reads as 0.75 once converted from sRGB.
-    expect(Math.min(l.sunColor.r, l.sunColor.g, l.sunColor.b)).toBeGreaterThan(0.7);
+    // Linear channels: the 0xcf blue of a warm white reads as 0.62 once converted from sRGB.
+    expect(Math.min(l.sunColor.r, l.sunColor.g, l.sunColor.b)).toBeGreaterThan(0.55);
+    expect(l.sunColor.r).toBeGreaterThanOrEqual(l.sunColor.b);
     expect(l.disc).toBe(1);
   });
 

@@ -20,7 +20,8 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 - [x] Swimmers, fliers and water-only species move the way their behaviour block says
 - [x] Emissive textures, per-bone mesh merging, production asset route with immutable caching
 - [x] Ambient wild pokemon per diorama
-- [ ] Phone performance pass on a real iPhone and a mid-range Android
+- [x] Lighting pass: filmic colour, sun and sky by hour, baked ambient occlusion, bloom and depth blur, animated water, grass
+- [ ] Phone performance pass on a real iPhone and a mid-range Android (creatures draw one mesh per bone; merge or drop ambient shadows first)
 - [ ] Embedded asset mode in exports, so a file can leave an install that has a different Cobblemon version
 
 ## Milestone 3, care loop

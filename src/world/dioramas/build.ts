@@ -95,6 +95,14 @@ export class SceneBuilder {
     return this.reserved.has(`${x},${z}`);
   }
 
+  /**
+   * The strip between the camera and the subject. Anything placed here sits
+   * a block from the lens and fills the frame, so props stay out of it.
+   */
+  inFront(x: number, z: number): boolean {
+    return z > SUBJECT.z + 0.5 && Math.abs(x + 0.5 - SUBJECT.x) < 3;
+  }
+
   /** Every cell in bounds, for ground fills. */
   forEachCell(fn: (x: number, z: number) => void): void {
     for (let z = this.bounds.minZ; z <= this.bounds.maxZ; z++) {
@@ -200,8 +208,11 @@ export class SceneBuilder {
   /** A stem with a cap; white and pink daisies get a yellow centre. */
   flower(x: number, z: number, kind: "flower_white" | "flower_pink" | "flower_yellow", y = 0): void {
     this.block("stem", x, y, z);
-    this.block(kind, x, y + 0.42, z, { rotationY: this.rand() * Math.PI * 0.5 });
-    if (kind !== "flower_yellow") this.block("flower_centre", x, y + 0.56, z);
+    const yaw = this.rand() * Math.PI * 0.5;
+    this.block(kind, x, y + 0.42, z, { rotationY: yaw });
+    if (kind === "flower_yellow") return;
+    this.block(kind, x, y + 0.42, z, { rotationY: yaw + Math.PI / 2 });
+    this.block("flower_centre", x, y + 0.5, z);
   }
 
   mushroom(x: number, z: number, cap: "mushroom_red" | "mushroom_brown", y = 0): void {
@@ -236,7 +247,7 @@ export class SceneBuilder {
   /** Spread small props over free walkable cells. `place` returns true when it used the cell. */
   scatter(chance: number, place: (x: number, z: number) => boolean | void): void {
     this.forEachCell((x, z) => {
-      if (!this.isWalkable(x, z) || this.isReserved(x, z)) return;
+      if (!this.isWalkable(x, z) || this.isReserved(x, z) || this.inFront(x, z)) return;
       if (this.rand() >= chance) return;
       if (place(x, z)) this.walkable(x, z, false);
     });
