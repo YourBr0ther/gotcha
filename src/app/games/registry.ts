@@ -1,11 +1,11 @@
 /**
- * The games the Games screen shows. `minigames` adds one by importing its
- * `src/games/<id>/manifest.ts` here; the page itself does not change.
- * Until then the list is empty and the page shows the planned set as
- * "coming soon" cards.
+ * The games the Games screen shows. A game appears here once its manifest
+ * is in `src/games/manifests.ts`; the page itself does not change. The
+ * planned set still shows as "coming soon" cards until each one lands.
  */
 
 import type { PixelIconName } from "@/components/pixel/PixelIcon";
+import { MANIFESTS } from "@/games/manifests";
 
 export interface GameManifest {
   id: string;
@@ -18,7 +18,14 @@ export interface GameManifest {
   seconds?: number;
 }
 
-export const GAMES: GameManifest[] = [];
+export const GAMES: GameManifest[] = MANIFESTS.map((m) => ({
+  id: m.id,
+  title: m.name,
+  tagline: m.blurb,
+  href: `/games/${m.id}`,
+  icon: m.icon,
+  seconds: m.seconds,
+}));
 
 export const PLANNED: Omit<GameManifest, "href">[] = [
   { id: "berry-catch", title: "Berry Catch", tagline: "Catch falling berries before they bruise.", icon: "berry", seconds: 60 },

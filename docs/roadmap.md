@@ -56,15 +56,15 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 ## Milestone 6, mini-games
 
 - [x] Payout curve with a daily cap
-- [ ] Berry catch, whack-a-Diglett, type-match memory
+- [x] Berry catch, whack-a-Diglett, type-match memory
 - [ ] Rhythm rock smash, fishing
-- [ ] The active pokemon reacting to wins and losses
+- [x] The active pokemon reacting to wins and losses (portrait from the texture; a real sprite is owed)
 
 ## Milestone 7, deploy
 
 - [x] Dockerfile, linux/amd64 image (279 MB, verified running locally)
 - [x] Generic k3s manifests: app, Postgres, data volume, rollover and backup CronJobs
-- [ ] First deployment to the owner's cluster
+- [x] First deployment to the owner's cluster (2026-10-30)
 - [x] First-run asset extraction and pokedex build from the data volume, readiness reports warming
 
 ## Later

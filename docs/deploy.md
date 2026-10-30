@@ -11,6 +11,11 @@ particular cluster (host, registry, namespace, middleware names, storage
 class) are placeholders, listed under "Adapting the placeholders" below.
 Keep your filled-in copies outside this repository.
 
+A container-driver builder pushes over HTTPS and will refuse a plain-HTTP
+private registry even when the Docker daemon lists it as insecure. Build
+with `--load` so the image lands in the daemon, then `docker push`, which
+honours the daemon's insecure-registry list.
+
 ## What the image holds
 
 | Path in the image | What it is |
@@ -50,11 +55,12 @@ invalidates the previous one's caches on phones; pass the tag.
 TAG=$(date +%Y%m%d)-first-deploy
 docker buildx build --platform linux/amd64 \
   --build-arg BUILD_ID=$TAG \
-  -t registry.example.com/gotcha:$TAG --push .
+  -t registry.example.com/gotcha:$TAG --load .
+docker push registry.example.com/gotcha:$TAG
 ```
 
-To build without pushing, replace `--push` with `--load` and the registry
-prefix with a local name such as `gotcha:local`. A cold build takes a few
+To build without pushing, use a local name such as `gotcha:local` and skip
+the push. A cold build takes a few
 minutes; the pnpm store is cached between builds with a BuildKit cache
 mount, so later builds only reinstall when the lockfile changes.
 
