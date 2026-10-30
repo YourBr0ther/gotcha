@@ -1,0 +1,35 @@
+# Build context for the Dockerfile. Anything the image build does not read
+# stays out so a stray jar or cache does not get hashed into every layer.
+node_modules
+**/node_modules
+.next
+.git
+.claude
+.env
+.env.*
+!.env.example
+# Holds use-node-version; the image runs its own Node 22.
+.npmrc
+# The Cobblemon jar (140 MB) and both caches never enter the image. The pod
+# extracts into /data on first start.
+assets
+.cobblemon-cache
+.pokedex-cache
+*.cpkmn
+# Test and tooling output.
+test-results
+playwright-report
+.playwright-mcp
+coverage
+*.tsbuildinfo
+*.log
+.DS_Store
+**/*.test.ts
+**/*.test.tsx
+# Documentation, branding sources and the manifests are read by people, not
+# by next build.
+docs
+branding
+README.md
+LICENSE
+deploy/k8s

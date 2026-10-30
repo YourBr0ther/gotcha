@@ -4,7 +4,7 @@
  * care and the scheduler persist through care.settle.
  */
 
-import type { Needs, State, Stats } from "@gotcha/cpkmn";
+import type { Needs, Pokedex, State, Stats } from "@gotcha/cpkmn";
 import { decay, mood, MINUTE, type ActiveModifier, type Mood } from "@/lib/sim";
 import type { PokemonRow, PokemonStatus, TrainerRow } from "@/lib/db/schema";
 import { getSpecies, speciesFacts } from "./species";
@@ -30,6 +30,8 @@ export interface PokemonView {
   mood: Mood;
   stats: Stats;
   modifiers: ActiveModifier[];
+  /** The species snapshot the file carries. Memories stay off the view; the journal route serves them. */
+  pokedex: Pokedex;
   now: string;
 }
 
@@ -122,6 +124,7 @@ export async function pokemonView(row: PokemonRow, trainer: Pick<TrainerRow, "ti
     mood: m,
     stats: row.stats,
     modifiers: liveModifiers(row.modifiers, now),
+    pokedex: row.pokedex,
     now,
   };
 }

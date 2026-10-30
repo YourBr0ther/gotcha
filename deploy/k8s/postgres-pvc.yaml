@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gotcha-postgres
+  namespace: gotcha
+spec:
+  accessModes: [ReadWriteOnce]
+  # Uses the cluster's default StorageClass. Name one here if the default is
+  # not a block volume that can follow the pod between nodes.
+  resources:
+    requests:
+      storage: 5Gi

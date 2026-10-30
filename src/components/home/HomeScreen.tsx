@@ -11,7 +11,9 @@ import { PixelIcon } from "@/components/pixel/PixelIcon";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/primitives";
 import { errorText, get, post, shareOrDownload, type BagEntry, type CareOutcome, type Me, type PartyView, type RichView, type StoreItem, type StoreResponse, type Weather } from "@/components/lib/api";
-import { hasUnread } from "@/components/lib/journalBadge";
+import type { JournalView } from "@/lib/services/journal";
+import type { DiscardResult } from "@/lib/services/bag";
+import { hasUnread } from "./journalMark";
 import { readLowPower } from "@/components/lib/prefs";
 import { ActionButton, ClockCard, MetersCard, NameCard, SquareButton, type Deltas } from "./Hud";
 import { CareSheet, type CareKind, type CareRequest } from "./CareSheet";
@@ -215,7 +217,28 @@ export function HomeScreen() {
     return () => source.close();
   }, [pokemonId]);
 
-  const journalNew = useMemo(() => (view ? hasUnread(view.id, view.memories) : false), [view]);
+  // The journal rides its own route, not the stream; fetch it when the pokemon
+  // changes and again when the tab comes back, which covers returning from /journal.
+  const [journalNewestAt, setJournalNewestAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pokemonId) return;
+    let alive = true;
+    const refresh = () => {
+      if (document.visibilityState === "hidden") return;
+      get<JournalView>(`/api/pokemon/${pokemonId}/journal`)
+        .then((j) => {
+          if (alive) setJournalNewestAt(j.newestAt);
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [pokemonId]);
+  const journalNew = useMemo(() => (pokemonId ? hasUnread(pokemonId, journalNewestAt) : false), [pokemonId, journalNewestAt]);
 
   const bag: BagEntry[] = me?.bag ?? [];
 
@@ -317,10 +340,21 @@ export function HomeScreen() {
   }, [router]);
 
   const discard = useCallback(
-    (itemId: string) => {
-      toast(`No way to toss ${itemId.replace(/_/g, " ")} yet`, "info");
+    async (itemId: string) => {
+      if (busy) return;
+      setBusy(true);
+      try {
+        const result = await post<DiscardResult>("/api/bag", { op: "discard", itemId, qty: 1 });
+        setMe((m) => (m ? { ...m, bag: result.bag } : m));
+        const name = catalog.find((i) => i.id === itemId)?.name ?? itemId.replace(/_/g, " ");
+        toast(result.remaining > 0 ? `Tossed one ${name}, ${result.remaining} left` : `Tossed the last ${name}`, "info");
+      } catch (e) {
+        toast(errorText(e), "error");
+      } finally {
+        setBusy(false);
+      }
     },
-    [toast],
+    [busy, catalog, toast],
   );
 
   const hudHidden = photo || phase !== "world";
@@ -426,7 +460,7 @@ export function HomeScreen() {
       ) : null}
 
       {view ? (
-        <CareSheet kind={sheet} onClose={() => setSheet(null)} view={view} bag={bag} catalog={catalog} busy={busy} onCare={(req) => void care(req, req.action !== "wake" && sheet !== "items")} onDiscard={discard} />
+        <CareSheet kind={sheet} onClose={() => setSheet(null)} view={view} bag={bag} catalog={catalog} busy={busy} onCare={(req) => void care(req, req.action !== "wake" && sheet !== "items")} onDiscard={(itemId) => void discard(itemId)} />
       ) : null}
     </div>
   );

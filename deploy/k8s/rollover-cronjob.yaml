@@ -1,0 +1,58 @@
+# Nightly roll-over: pays each trainer's stipend, settles the party so the
+# day's engine events are logged, hands them to the memory roll-up, expires
+# stale trade offers. One POST with the shared token; the work happens
+# inside the app, so the job needs nothing from the image.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gotcha-rollover
+  namespace: gotcha
+spec:
+  # 01:00 local, after the family is asleep and before anyone checks in.
+  schedule: "0 1 * * *"
+  # Native cron time zones need Kubernetes 1.27 or newer. Without this the
+  # job fires at 01:00 UTC. Keep it equal to TZ on the app Deployment.
+  timeZone: America/New_York
+  # A missed window is not worth catching up on hours later; the next night
+  # pays whatever stipend is still outstanding.
+  startingDeadlineSeconds: 3600
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # The roll-up makes model calls. One retry covers a provider blip.
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: rollover
+              image: curlimages/curl:8.11.1
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  curl --silent --show-error --fail-with-body \
+                    --max-time 1500 \
+                    -X POST \
+                    -H "Authorization: Bearer $ROLLOVER_TOKEN" \
+                    http://gotcha:3000/api/internal/rollover
+                  echo
+              env:
+                - name: ROLLOVER_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: gotcha-secrets
+                      key: ROLLOVER_TOKEN
+                - name: TZ
+                  value: America/New_York
+              resources:
+                requests:
+                  memory: "32Mi"
+                  cpu: "10m"
+                limits:
+                  memory: "64Mi"
+                  cpu: "100m"

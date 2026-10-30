@@ -19,6 +19,12 @@ function nameFor(type: string): string {
  * when no backend can transcribe so the client falls back to typing.
  */
 export const POST = plain(async (request) => {
+  // Refuse oversized uploads before buffering them. The size check on the
+  // parsed blob below still applies to chunked requests without a length.
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > MAX_AUDIO_BYTES + 64 * 1024) {
+    return json({ error: "recording too large", code: "bad_request" }, { status: 413 });
+  }
   const contentType = request.headers.get("content-type") ?? "";
   let audio: Blob | null = null;
   let filename = "speech.webm";

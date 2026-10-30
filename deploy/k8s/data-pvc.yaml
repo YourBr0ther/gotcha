@@ -1,0 +1,13 @@
+# The app's /data volume: the Cobblemon jar you copy in, the asset cache the
+# pod extracts from it (about 125 MB), the pokedex cache (about 175 MB with
+# the PokeAPI responses kept for rebuilds) and uploaded .cpkmn files.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gotcha-data
+  namespace: gotcha
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi

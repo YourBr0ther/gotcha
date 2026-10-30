@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gotcha
+  namespace: gotcha
+  labels:
+    app: gotcha
+spec:
+  replicas: 1
+  # Recreate: the /data volume is ReadWriteOnce, so the old pod has to let
+  # go before the new one can mount it. A rolling update would sit on a
+  # Multi-Attach error. The gap is the time the new pod takes to pass its
+  # readiness probe, a few seconds once the caches exist.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gotcha
+  template:
+    metadata:
+      labels:
+        app: gotcha
+    spec:
+      # The image runs as uid 1000 (the node user). fsGroup makes a freshly
+      # provisioned, root-owned volume writable by it.
+      securityContext:
+        fsGroup: 1000
+
+      initContainers:
+        # Postgres accepts connections a few seconds after its pod reports
+        # ready, and the migrate step fails hard if it gets there first.
+        - name: wait-for-postgres
+          image: postgres:16
+          command:
+            - /bin/sh
+            - -c
+            - until pg_isready -h gotcha-postgres -p 5432 -U gotcha; do sleep 2; done
+
+        # Applies drizzle migrations from the same image that serves, so the
+        # schema can never be a version behind the code. Idempotent. The
+        # entrypoint runs the same tool again before serving; this one exists
+        # so a broken migration fails the rollout here, in plain sight,
+        # rather than crash-looping the app container.
+        - name: migrate
+          image: registry.example.com/gotcha:TAG
+          imagePullPolicy: Always
+          command: ["node", "/app/tools/migrate.mjs"]
+          envFrom:
+            - secretRef:
+                name: gotcha-secrets
+
+      containers:
+        - name: gotcha
+          image: registry.example.com/gotcha:TAG
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: gotcha-secrets
+          env:
+            - name: NODE_ENV
+              value: "production"
+            # GOTCHA_DATA_DIR and COBBLEMON_CACHE_DIR are baked into the
+            # image as /data and /data/cobblemon-cache.
+            - name: TZ
+              value: America/New_York
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          # First start extracts the Cobblemon jar before the server comes
+          # up, which takes minutes. The startup probe holds liveness off
+          # for up to 15 minutes; after that the usual probes take over.
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 10
+            failureThreshold: 90
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: 3000
+            periodSeconds: 10
+          resources:
+            # Extraction inflates jar entries in memory one at a time, and
+            # the background pokedex build holds a few hundred JSON files.
+            # Steady state sits well under the request.
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: gotcha-data

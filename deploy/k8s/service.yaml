@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gotcha
+  namespace: gotcha
+spec:
+  type: ClusterIP
+  selector:
+    app: gotcha
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP

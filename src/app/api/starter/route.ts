@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { starterSpecies } from "@/lib/services/pokedex";
 import { createStarter } from "@/lib/services/starter";
-import { listSpecies } from "@/lib/services/species";
 import { pokemonView } from "@/lib/services/views";
 import { json, parseBody, withTrainer } from "../_lib/handler";
 
@@ -10,7 +10,8 @@ const Body = z.object({
   gender: z.enum(["male", "female", "genderless"]).optional(),
 });
 
-export const GET = withTrainer(async () => json({ species: await listSpecies() }));
+/** Every species a trainer can start with: `{ species: [{ id, name, dex, types, dioramas }] }`. */
+export const GET = withTrainer(async () => json({ species: await starterSpecies() }));
 
 export const POST = withTrainer(async (request, { db, trainer, now }) => {
   const body = await parseBody(request, Body);

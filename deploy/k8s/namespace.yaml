@@ -1,0 +1,6 @@
+# Every manifest in this directory uses the `gotcha` namespace. Drop this file
+# and change the namespace fields if the app should live in an existing one.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gotcha

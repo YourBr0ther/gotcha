@@ -1,0 +1,28 @@
+# Traefik IngressRoute. Gotcha has no login of its own: it trusts the
+# Remote-User header, so the route must sit behind a forward-auth middleware
+# (Authelia, Authentik, oauth2-proxy) that sets it. Exposing the Service
+# without one makes every visitor whichever trainer they claim to be.
+#
+# Rename the middlewares to the ones your Traefik has, and the host to the
+# name you point at it. If the cluster uses the Ingress API instead, the
+# equivalent is an Ingress with the forward-auth annotation your controller
+# understands.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gotcha
+  namespace: gotcha
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`gotcha.example.com`)
+      kind: Rule
+      priority: 10
+      middlewares:
+        - name: forward-auth
+        - name: secure-headers
+      services:
+        - name: gotcha
+          port: 3000
+  tls: {}

@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gotcha-postgres
+  namespace: gotcha
+  labels:
+    app: gotcha-postgres
+spec:
+  replicas: 1
+  # Recreate, not RollingUpdate. One replica on a ReadWriteOnce volume cannot
+  # have two pods attached at once; a rolling update deadlocks on a
+  # Multi-Attach error while the old pod still holds the volume.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gotcha-postgres
+  template:
+    metadata:
+      labels:
+        app: gotcha-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: gotcha
+            - name: POSTGRES_DB
+              value: gotcha
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gotcha-secrets
+                  key: POSTGRES_PASSWORD
+            # A subdirectory, not the volume root. Some provisioners hand over
+            # a volume with lost+found in it, and initdb refuses a non-empty
+            # directory.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: TZ
+              value: America/New_York
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "gotcha", "-d", "gotcha"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "gotcha", "-d", "gotcha"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            # Request half the limit on purpose. A low request puts the pod
+            # among the first evicted under memory pressure, and Postgres is
+            # not cgroup-aware: an OOM kill is a SIGKILL to the postmaster and
+            # crash recovery on the volume. The database is the one thing here
+            # that cannot be rebuilt from a jar.
+            requests:
+              memory: "512Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: gotcha-postgres

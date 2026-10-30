@@ -62,9 +62,10 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 
 ## Milestone 7, deploy
 
-- [ ] Dockerfile, linux/amd64 image
-- [ ] k3s manifests: app, Postgres, data volume, rollover and backup CronJobs
-- [ ] First-run asset extraction from a jar on the data volume
+- [x] Dockerfile, linux/amd64 image (279 MB, verified running locally)
+- [x] Generic k3s manifests: app, Postgres, data volume, rollover and backup CronJobs
+- [ ] First deployment to the owner's cluster
+- [x] First-run asset extraction and pokedex build from the data volume, readiness reports warming
 
 ## Later
 

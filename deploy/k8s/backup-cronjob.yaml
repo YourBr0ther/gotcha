@@ -1,0 +1,101 @@
+# Nightly logical backup of the whole database.
+#
+# A volume snapshot, if the storage layer takes one, is a crash-consistent
+# block copy and protects against losing the volume. It does nothing for a
+# bad migration or an accidental delete noticed a week later, and the
+# migrate initContainer applies whatever migration ships with the image on
+# every start. A pg_dump is a different kind of artifact: restorable
+# selectively, readable on a laptop, and untouched by what the app did to
+# its own schema. The database is small, so thirty daily dumps cost little.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gotcha-backups
+  namespace: gotcha
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gotcha-backup
+  namespace: gotcha
+spec:
+  # 02:30 local, after the 01:00 rollover, so each dump holds that night's
+  # stipends and roll-up rather than catching the database mid-write.
+  schedule: "30 2 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: backup
+              # Same image as the database, so pg_dump always matches the
+              # server. A newer client can read an older server, not the
+              # reverse, and matching removes the question.
+              image: postgres:16
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  umask 077
+                  STAMP=$(date +%F-%H%M%S)
+                  OUT="/backups/gotcha-${STAMP}.dump"
+
+                  # Only verified dumps get a final name or count toward
+                  # retention.
+                  TMP=$(mktemp /backups/.gotcha-XXXXXX)
+                  trap 'rm -f "$TMP"' EXIT HUP INT TERM
+
+                  # Custom format: compressed, and pg_restore can pull one
+                  # table out of it instead of replaying everything.
+                  pg_dump --format=custom --no-owner --no-privileges \
+                    --dbname="$DATABASE_URL" --file="$TMP"
+
+                  # A dump that cannot be listed is not a backup. Finding
+                  # that out tonight beats finding it out during a restore.
+                  pg_restore --list "$TMP" > /dev/null
+                  mv "$TMP" "$OUT"
+                  echo "wrote $OUT ($(du -h "$OUT" | cut -f1))"
+
+                  # Keep 30.
+                  ls -1t /backups/gotcha-*.dump | tail -n +31 | while read -r f; do
+                    echo "pruning $(basename "$f")"
+                    rm -f "$f"
+                  done
+                  echo "backups on disk: $(ls -1 /backups/gotcha-*.dump | wc -l)"
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: gotcha-secrets
+                      key: DATABASE_URL
+                - name: TZ
+                  value: America/New_York
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests:
+                  memory: "128Mi"
+                  cpu: "50m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: gotcha-backups
