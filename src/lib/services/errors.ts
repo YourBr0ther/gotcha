@@ -24,6 +24,9 @@ export type ServiceErrorCode =
   | "item_not_in_bag"
   | "item_required"
   | "bad_file"
+  | "trade_mismatch"
+  | "trade_expired"
+  | "unverified_file"
   | "signing_unavailable";
 
 const STATUS: Record<ServiceErrorCode, number> = {
@@ -47,6 +50,9 @@ const STATUS: Record<ServiceErrorCode, number> = {
   item_not_in_bag: 409,
   item_required: 400,
   bad_file: 422,
+  trade_mismatch: 409,
+  trade_expired: 409,
+  unverified_file: 403,
   signing_unavailable: 503,
 };
 

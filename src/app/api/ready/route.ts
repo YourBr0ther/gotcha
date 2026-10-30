@@ -10,6 +10,8 @@ export const GET = plain(async () => {
     await db.execute(sql`select 1 from trainer limit 1`);
     return json({ ok: true, db: "ready" });
   } catch (error) {
-    return json({ ok: false, db: "unavailable", error: (error as Error).message }, { status: 503 });
+    // The message can name hosts and credentials; keep it in the server log.
+    console.error("[ready] database check failed", error);
+    return json({ ok: false, db: "unavailable" }, { status: 503 });
   }
 });

@@ -252,6 +252,14 @@ Present only when the exporter was asked to trade rather than back up.
 { "nonce": "...", "fromTrainerId": "...", "toTrainerId": null, "offeredAt": "...", "expiresAt": "..." }
 ```
 
+Importing a file whose `pokemonId` is `in_transit` on this install is only
+accepted when the file carries the nonce of that pokemon's outstanding
+trade. A trainer other than the owner must also present a file whose
+signature verifies against a known key, and the offer must not have expired
+or been addressed to someone else. The owner can always bring their own
+pokemon home with the trade file, even unsigned. The once-per-trainer
+welcome bonus on a new arrival is paid only for a verified file.
+
 Exporting for trade sets the pokemon to `in_transit` on the source install.
 It cannot be made active, fed, or exported again until the file is imported
 back (which cancels the trade) or the trade is confirmed by the recipient

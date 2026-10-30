@@ -7,7 +7,7 @@ import { HOUR, milestoneBonus } from "@/lib/sim";
 import { care } from "./care";
 import { getParty } from "./party";
 import { insertPokemon, later, makeTrainer, T0 } from "./testing";
-import { exportPokemon, importPokemon, keyFile, type SigningConfig } from "./transfer";
+import { exportPokemon, importPokemon, keyFile, TRADE_TTL, type SigningConfig } from "./transfer";
 
 let t: TestDb;
 let signed: SigningConfig;
@@ -157,5 +157,72 @@ describe("export and import", () => {
   it("publishes the key file for other installs", async () => {
     expect(await keyFile(signed)).toEqual({ keys: [{ keyId: "test#2026-11", alg: "ed25519", publicKey: signed.publicKey }] });
     expect(await keyFile({ knownKeys: {}, installId: "x" })).toEqual({ keys: [] });
+  });
+});
+
+describe("import hardening", () => {
+  async function deleteRow(id: string) {
+    await t.db.delete(schema.event).where(eq(schema.event.pokemonId, id));
+    await t.db.delete(schema.pokemon).where(eq(schema.pokemon.id, id));
+  }
+
+  it("a stranger cannot take an in_transit pokemon with a file that lacks the trade nonce", async () => {
+    const eli = await makeTrainer(t.db, "eli", "Eli");
+    const mae = await makeTrainer(t.db, "mae", "Mae");
+    const row = await insertPokemon(t.db, eli, { slot: 1, active: true });
+    // A backup made before the trade is a signed, valid file with the right id and no trade.json.
+    const backup = await exportPokemon(t.db, eli, row.id, "backup", T0, signed);
+    await exportPokemon(t.db, eli, row.id, "trade", later(T0, HOUR), signed);
+
+    await expect(importPokemon(t.db, mae, backup.bytes, later(T0, 2 * HOUR), signed)).rejects.toMatchObject({ code: "trade_mismatch" });
+    // And the owner cannot "return" it with the stale backup either; they need the trade file.
+    await expect(importPokemon(t.db, eli, backup.bytes, later(T0, 2 * HOUR), signed)).rejects.toMatchObject({ code: "trade_mismatch" });
+    const still = (await t.db.query.pokemon.findFirst({ where: eq(schema.pokemon.id, row.id) }))!;
+    expect(still).toMatchObject({ status: "in_transit", trainerId: eli.id });
+  });
+
+  it("a stranger needs a verified signature to receive a trade; the owner does not to bring it home", async () => {
+    const eli = await makeTrainer(t.db, "eli", "Eli");
+    const mae = await makeTrainer(t.db, "mae", "Mae");
+    const row = await insertPokemon(t.db, eli, { slot: 1, active: true });
+    // Signed by a key this install does not know.
+    const exported = await exportPokemon(t.db, eli, row.id, "trade", T0, stranger);
+
+    await expect(importPokemon(t.db, mae, exported.bytes, later(T0, HOUR), signed)).rejects.toMatchObject({ code: "unverified_file" });
+    const home = await importPokemon(t.db, eli, exported.bytes, later(T0, HOUR), signed);
+    expect(home.outcome).toBe("returned");
+    expect(home.verification).toBe("unverified");
+  });
+
+  it("an expired trade offer cannot be received, but the owner can still bring the pokemon home", async () => {
+    const eli = await makeTrainer(t.db, "eli", "Eli");
+    const mae = await makeTrainer(t.db, "mae", "Mae");
+    const row = await insertPokemon(t.db, eli, { slot: 1, active: true });
+    const exported = await exportPokemon(t.db, eli, row.id, "trade", T0, signed);
+    const late = later(T0, TRADE_TTL + HOUR);
+
+    await expect(importPokemon(t.db, mae, exported.bytes, late, signed)).rejects.toMatchObject({ code: "trade_expired" });
+    const home = await importPokemon(t.db, eli, exported.bytes, late, signed);
+    expect(home.outcome).toBe("returned");
+  });
+
+  it("the first-import bonus is paid once per trainer and only for verified files", async () => {
+    const trainer = await makeTrainer(t.db, "eli");
+    const a = await insertPokemon(t.db, trainer, { slot: 1, active: true });
+    const b = await insertPokemon(t.db, trainer, { slot: 2 });
+    const c = await insertPokemon(t.db, trainer, { slot: 3 });
+    const fileA = await exportPokemon(t.db, trainer, a.id, "backup", T0, signed);
+    const fileB = await exportPokemon(t.db, trainer, b.id, "backup", T0, signed);
+    const fileC = await exportPokemon(t.db, trainer, c.id, "backup", T0, { knownKeys: {}, installId: "nokey" });
+    await deleteRow(a.id);
+    await deleteRow(b.id);
+    await deleteRow(c.id);
+
+    // Unsigned first: no bonus, and it does not consume the once-per-trainer bonus.
+    expect((await importPokemon(t.db, trainer, fileC.bytes, later(T0, HOUR), signed)).bytesAwarded).toBe(0);
+    expect((await importPokemon(t.db, trainer, fileA.bytes, later(T0, HOUR), signed)).bytesAwarded).toBe(milestoneBonus("first_import"));
+    expect((await importPokemon(t.db, trainer, fileB.bytes, later(T0, HOUR), signed)).bytesAwarded).toBe(0);
+    const me = await t.db.query.trainer.findFirst({ where: eq(schema.trainer.id, trainer.id) });
+    expect(me?.bytes).toBe(milestoneBonus("first_import"));
   });
 });

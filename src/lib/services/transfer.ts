@@ -209,8 +209,30 @@ export async function importPokemon(db: Db, trainer: TrainerRow, bytes: Uint8Arr
         .where(and(eq(schema.trade.pokemonId, id), inArray(schema.trade.state, ["offered", "expired"])))
         .for("update");
       outcome = existing.trainerId === trainer.id ? "returned" : "received";
+
+      // The file must carry the nonce of this pokemon's outstanding trade.
+      // Without this check anyone who knew a pokemonId could hand-build a
+      // file and take over a pokemon that is out for trade.
+      const fileNonce = pokemon.trade?.nonce ?? null;
+      const match = fileNonce ? open.find((t) => t.nonce === fileNonce) : undefined;
+      if (open.length > 0 && !match) {
+        throw new ServiceError("trade_mismatch", "this file does not match the pokemon's outstanding trade");
+      }
+
+      if (outcome === "received") {
+        // A stranger taking ownership needs a file this install, or a known
+        // install, actually signed, and a live trade addressed to them (or to
+        // anyone). The owner bringing their own pokemon home needs neither.
+        if (verification !== "verified") throw new ServiceError("unverified_file", "trades are only accepted from signed files with a known key");
+        if (!match) throw new ServiceError("trade_mismatch", "no outstanding trade for this pokemon");
+        if (match.state !== "offered" || Date.parse(match.expiresAt) <= Date.parse(now)) {
+          throw new ServiceError("trade_expired", "this trade offer has expired; the owner can still bring the pokemon home");
+        }
+        if (match.toTrainerId && match.toTrainerId !== trainer.id) throw new ServiceError("trade_mismatch", "this trade was offered to someone else");
+      }
+
       if (open.length > 0) {
-        tradeNonce = open[open.length - 1].nonce;
+        tradeNonce = match?.nonce ?? open[open.length - 1].nonce;
         await tx
           .update(schema.trade)
           .set(outcome === "returned" ? { state: "cancelled" } : { state: "confirmed", toTrainerId: trainer.id })
@@ -275,9 +297,19 @@ export async function importPokemon(db: Db, trainer: TrainerRow, bytes: Uint8Arr
     await tx.insert(schema.event).values({ pokemonId: id, ts: now, kind: "trade", summary, importance: 4, trainerId: trainer.id, emotion: outcome === "returned" ? "relieved" : "curious" });
 
     let bytesAwarded = 0;
-    if (outcome === "new") {
-      bytesAwarded = milestoneBonus("first_import");
-      await adjustBytes(tx, trainer.id, bytesAwarded, "milestone", `first_import:${id}`);
+    // The welcome bonus is once per trainer, and only for a file signed by a
+    // known install. Keying it on the pokemon id would let anyone mint Bytes
+    // by importing freshly generated files.
+    if (outcome === "new" && verification === "verified") {
+      const [paid] = await tx
+        .select({ id: schema.ledger.id })
+        .from(schema.ledger)
+        .where(and(eq(schema.ledger.trainerId, trainer.id), eq(schema.ledger.reason, "milestone"), eq(schema.ledger.ref, "first_import")))
+        .limit(1);
+      if (!paid) {
+        bytesAwarded = milestoneBonus("first_import");
+        await adjustBytes(tx, trainer.id, bytesAwarded, "milestone", "first_import");
+      }
     }
 
     const view = await pokemonView(row, trainer, now);
