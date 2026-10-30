@@ -19,7 +19,7 @@ import { findManifest, type GameManifestData } from "@/games/manifests";
 import { publish } from "./bus";
 import { ServiceError } from "./errors";
 import { logEngineEvents } from "./pokemon";
-import { displayName, localDay, pokemonView } from "./views";
+import { displayName, pokemonView } from "./views";
 
 export const MINIGAME_REASON = "minigame";
 /** A token older than this is refused even with a sound signature. */
@@ -48,9 +48,24 @@ function sign(payload: string): string {
   return createHmac("sha256", secret()).update(payload).digest("base64url");
 }
 
+/**
+ * At most this many scored rounds per rolling day. The Bytes cap already
+ * bounds currency; this bounds experience and keeps a scripted client from
+ * grinding the 0.1 floor of the payout curve all night.
+ */
+export const MAX_ROUNDS_PER_DAY = 24;
+
+/**
+ * One open round per trainer, held in process memory. Starting a round
+ * invalidates the previous token, so tokens cannot be stockpiled and played
+ * back later. A restart forgets open rounds; the client just starts again.
+ */
+const openRounds = new Map<string, string>();
+
 export function issueRoundToken(trainerId: string, gameId: string, now: string): { token: string; roundId: string } {
   const claims: RoundClaims = { r: randomUUID(), t: trainerId, g: gameId, i: Date.parse(now) };
   const payload = Buffer.from(JSON.stringify(claims), "utf8").toString("base64url");
+  openRounds.set(trainerId, claims.r);
   return { token: `${payload}.${sign(payload)}`, roundId: claims.r };
 }
 
@@ -75,23 +90,22 @@ export function ledgerRef(gameId: string, roundId: string): string {
   return `${gameId}:${roundId}`;
 }
 
-/** Today's mini-game rows in the trainer's timezone, summed. */
-export async function dayTotalsFor(db: DbOrTx, trainer: Pick<TrainerRow, "id" | "timezone">, now: string): Promise<DayTotals> {
-  const today = localDay(trainer.timezone, now);
-  // Two days back covers every timezone; the local-day filter does the rest.
-  const since = new Date(Date.parse(now) - 48 * 60 * MINUTE).toISOString();
+/**
+ * Mini-game rows in the last 24 hours, summed. A rolling window rather than
+ * the trainer's local day: the timezone is trainer-editable, and flipping it
+ * would reopen a day that was already capped.
+ */
+export const DAY_WINDOW_MS = 24 * 60 * MINUTE;
+
+export async function dayTotalsFor(db: DbOrTx, trainer: Pick<TrainerRow, "id">, now: string): Promise<DayTotals> {
+  const since = new Date(Date.parse(now) - DAY_WINDOW_MS).toISOString();
   const rows = await db
-    .select({ delta: schema.ledger.delta, at: schema.ledger.at })
+    .select({ delta: schema.ledger.delta })
     .from(schema.ledger)
     .where(and(eq(schema.ledger.trainerId, trainer.id), eq(schema.ledger.reason, MINIGAME_REASON), gte(schema.ledger.at, since)));
-  let gamesPlayed = 0;
   let bytesEarned = 0;
-  for (const row of rows) {
-    if (localDay(trainer.timezone, new Date(row.at).toISOString()) !== today) continue;
-    gamesPlayed += 1;
-    bytesEarned += row.delta;
-  }
-  return { gamesPlayed, bytesEarned };
+  for (const row of rows) bytesEarned += row.delta;
+  return { gamesPlayed: rows.length, bytesEarned };
 }
 
 function requireManifest(gameId: string): GameManifestData {
@@ -204,6 +218,10 @@ export async function submitRound(db: Db, trainer: TrainerRow, input: RoundSubmi
   const claims = checkSubmission(trainer, input, manifest, now);
   const ref = ledgerRef(input.gameId, claims.r);
   const normalized = Math.max(0, Math.min(1, input.score / input.maxScore));
+  // The client reports its own score; replaying a touch game on the server is
+  // not worth it for a family app. What the server does own is whether the
+  // round counts as perfect, and the daily caps that bound any cheating.
+  const perfect = normalized >= 1;
 
   const { outcome, view } = await db.transaction(async (tx) => {
     // The trainer lock serialises rounds per trainer, so the replay check and the day totals are read under it.
@@ -213,8 +231,11 @@ export async function submitRound(db: Db, trainer: TrainerRow, input: RoundSubmi
       where: and(eq(schema.ledger.trainerId, trainer.id), eq(schema.ledger.reason, MINIGAME_REASON), eq(schema.ledger.ref, ref)),
     });
     if (replay) throw new ServiceError("already_present", "this round was already scored");
+    if (openRounds.get(trainer.id) !== claims.r) throw new ServiceError("bad_request", "this is not the trainer's open round; start a new round");
 
     const before = await dayTotalsFor(tx, trainer, now);
+    if (before.gamesPlayed >= MAX_ROUNDS_PER_DAY) throw new ServiceError("bad_request", `that is ${MAX_ROUNDS_PER_DAY} rounds today; the games open again tomorrow`);
+    openRounds.delete(trainer.id);
     const payout = miniGamePayout({ game: input.gameId, score: normalized, durationMs: input.durationMs, completed: true }, before);
     const balance = locked.bytes + payout.bytes;
     if (payout.bytes !== 0) await tx.update(schema.trainer).set({ bytes: balance }).where(eq(schema.trainer.id, trainer.id));
@@ -231,15 +252,15 @@ export async function submitRound(db: Db, trainer: TrainerRow, input: RoundSubmi
       levelsGained = grown.levelsGained;
       await tx.update(schema.pokemon).set({ stats: grown.stats, updatedAt: now }).where(eq(schema.pokemon.id, active.id));
       const name = displayName(active);
-      const how = input.perfect ? "a perfect round" : normalized >= 0.6 ? "a good round" : "a round";
+      const how = perfect ? "a perfect round" : normalized >= 0.6 ? "a good round" : "a round";
       await tx.insert(schema.event).values({
         pokemonId: active.id,
         ts: now,
         kind: "play",
         summary: `${trainer.displayName} played ${how} of ${manifest.name} with ${name}`,
-        importance: input.perfect ? 2 : 1,
+        importance: perfect ? 2 : 1,
         trainerId: trainer.id,
-        emotion: input.perfect ? "thrilled" : normalized >= 0.6 ? "happy" : "content",
+        emotion: perfect ? "thrilled" : normalized >= 0.6 ? "happy" : "content",
       });
       await logEngineEvents(tx, active, grown.events, trainer.id, trainer.displayName);
       view = await pokemonView({ ...active, stats: grown.stats }, trainer, now);
@@ -249,7 +270,7 @@ export async function submitRound(db: Db, trainer: TrainerRow, input: RoundSubmi
       gameId: input.gameId,
       roundId: claims.r,
       score: normalized,
-      perfect: input.perfect,
+      perfect,
       bytes: payout.bytes,
       experience,
       dayTotals: { gamesPlayed: before.gamesPlayed + 1, bytesEarned: before.bytesEarned + payout.bytes },

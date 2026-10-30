@@ -4,7 +4,7 @@ import { schema } from "@/lib/db";
 import { createTestDb, type TestDb } from "@/lib/db/testing";
 import { HOUR, MINIGAME_DAILY_CAP, MINIGAME_FLOOR, miniGameMultiplier, miniGamePayout, type DayTotals } from "@/lib/sim";
 import { MANIFESTS } from "@/games/manifests";
-import { CLOCK_SLACK_MS, dayTotalsFor, issueRoundToken, ledgerRef, MINIGAME_REASON, readRoundToken, ROUND_TTL_MS, startRound, submitRound } from "./games";
+import { CLOCK_SLACK_MS, dayTotalsFor, issueRoundToken, ledgerRef, MAX_ROUNDS_PER_DAY, MINIGAME_REASON, readRoundToken, ROUND_TTL_MS, startRound, submitRound } from "./games";
 import { giveBytes, insertPokemon, later, makeTrainer, T0 } from "./testing";
 
 let t: TestDb;
@@ -118,18 +118,36 @@ describe("games", () => {
     expect(saved?.bytes).toBe(MINIGAME_DAILY_CAP);
   });
 
-  it("starts a fresh day in the trainer's timezone", async () => {
+  it("counts a rolling 24 hour window, so changing timezone cannot reopen a capped day", async () => {
     const trainer = await makeTrainer(t.db, "eli");
-    await t.db.update(schema.trainer).set({ timezone: "America/New_York" }).where(eq(schema.trainer.id, trainer.id));
-    const nyTrainer = (await t.db.query.trainer.findFirst({ where: eq(schema.trainer.id, trainer.id) }))!;
-    // 03:30 UTC is still the evening before in New York.
-    const lateEvening = "2026-11-03T03:30:00.000Z";
-    await playRound(nyTrainer, lateEvening);
-    expect(await dayTotalsFor(t.db, nyTrainer, later(lateEvening, 30 * 60 * 1000))).toMatchObject({ gamesPlayed: 1 });
-    // 05:30 UTC is past midnight in New York: a new day.
-    expect(await dayTotalsFor(t.db, nyTrainer, "2026-11-03T05:30:00.000Z")).toEqual({ gamesPlayed: 0, bytesEarned: 0 });
-    // Seen from UTC the same rows would still be today.
-    expect(await dayTotalsFor(t.db, { id: trainer.id, timezone: "UTC" }, "2026-11-03T05:30:00.000Z")).toMatchObject({ gamesPlayed: 1 });
+    await insertPokemon(t.db, trainer, { slot: 1, active: true });
+    const start = await startRound(t.db, trainer, "berry-catch", T0);
+    const first = await submitRound(t.db, trainer, { token: start.token, gameId: "berry-catch", score: 10, maxScore: 10, durationMs: 60_000, perfect: true }, later(T0, 61_000));
+    expect(first.dayTotals.gamesPlayed).toBe(1);
+    expect((await dayTotalsFor(t.db, trainer, later(T0, 23 * HOUR))).gamesPlayed).toBe(1);
+    expect((await dayTotalsFor(t.db, trainer, later(T0, 25 * HOUR))).gamesPlayed).toBe(0);
+    const moved = { ...trainer, timezone: "Pacific/Kiritimati" };
+    expect((await dayTotalsFor(t.db, moved, later(T0, 23 * HOUR))).gamesPlayed).toBe(1);
+  });
+
+  it("allows only the trainer's most recent round, decides perfect itself, and stops at the round limit", async () => {
+    const trainer = await makeTrainer(t.db, "eli");
+    await insertPokemon(t.db, trainer, { slot: 1, active: true });
+    const submission = (token: string, score = 10) => ({ token, gameId: "berry-catch", score, maxScore: 10, durationMs: 60_000, perfect: true });
+    const a = await startRound(t.db, trainer, "berry-catch", T0);
+    const b = await startRound(t.db, trainer, "berry-catch", later(T0, 1000));
+    await expect(submitRound(t.db, trainer, submission(a.token), later(T0, 61_000))).rejects.toMatchObject({ code: "bad_request" });
+    expect((await submitRound(t.db, trainer, submission(b.token), later(T0, 62_000))).perfect).toBe(true);
+    const c = await startRound(t.db, trainer, "berry-catch", later(T0, 70_000));
+    expect((await submitRound(t.db, trainer, submission(c.token, 5), later(T0, 131_000))).perfect).toBe(false);
+    let at = later(T0, 200_000);
+    for (let i = (await dayTotalsFor(t.db, trainer, at)).gamesPlayed; i < MAX_ROUNDS_PER_DAY; i++) {
+      const r = await startRound(t.db, trainer, "berry-catch", at);
+      await submitRound(t.db, trainer, submission(r.token), later(at, 61_000));
+      at = later(at, 70_000);
+    }
+    const over = await startRound(t.db, trainer, "berry-catch", at);
+    await expect(submitRound(t.db, trainer, submission(over.token), later(at, 61_000))).rejects.toMatchObject({ code: "bad_request" });
   });
 
   it("refuses a replayed token", async () => {
