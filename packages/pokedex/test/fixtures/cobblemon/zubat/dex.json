@@ -1,0 +1,24 @@
+{
+  "entries": [
+    {
+      "conditionAspects": [],
+      "displayAspects": [],
+      "forms": [
+        {
+          "displayForm": "Normal",
+          "unlockForms": [
+            "Normal"
+          ]
+        }
+      ],
+      "id": "cobblemon:zubat",
+      "source": "zubat.json",
+      "speciesId": "cobblemon:zubat",
+      "variations": []
+    }
+  ],
+  "lines": {
+    "cobblemon.species.zubat.desc": "Zubat avoids sunlight because exposure causes it to become unhealthy. During the daytime, it stays in caves or under the eaves of old houses, sleeping while hanging upside down.",
+    "cobblemon.species.zubat.name": "Zubat"
+  }
+}

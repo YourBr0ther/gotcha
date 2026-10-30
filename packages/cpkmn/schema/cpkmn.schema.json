@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/YourBr0ther/gotcha/schema/cpkmn/1.0.0",
+  "title": "cpkmn 1.0.0",
+  "description": "Schemas for every JSON member of a .cpkmn archive. See docs/cpkmn-format.md.",
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "isoDate": { "type": "string", "format": "date-time" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "slug": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "percent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "trainerRef": {
+      "type": "object",
+      "required": ["trainerId", "name"],
+      "properties": {
+        "trainerId": { "$ref": "#/$defs/uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 40 }
+      }
+    },
+    "statBlock": {
+      "type": "object",
+      "required": ["hp", "atk", "def", "spa", "spd", "spe"],
+      "properties": {
+        "hp": { "type": "integer", "minimum": 0 },
+        "atk": { "type": "integer", "minimum": 0 },
+        "def": { "type": "integer", "minimum": 0 },
+        "spa": { "type": "integer", "minimum": 0 },
+        "spd": { "type": "integer", "minimum": 0 },
+        "spe": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "needs": {
+      "type": "object",
+      "required": ["hunger", "energy", "hygiene", "fun", "affection", "health"],
+      "properties": {
+        "hunger": { "$ref": "#/$defs/percent" },
+        "energy": { "$ref": "#/$defs/percent" },
+        "hygiene": { "$ref": "#/$defs/percent" },
+        "fun": { "$ref": "#/$defs/percent" },
+        "affection": { "$ref": "#/$defs/percent" },
+        "health": { "$ref": "#/$defs/percent" }
+      },
+      "additionalProperties": false
+    },
+
+    "manifest": {
+      "type": "object",
+      "required": ["format", "formatVersion", "generator", "pokemonId", "createdAt", "exportedAt", "assetMode", "contents"],
+      "properties": {
+        "format": { "const": "cpkmn" },
+        "formatVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "generator": {
+          "type": "object",
+          "required": ["name", "version"],
+          "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+        },
+        "pokemonId": { "$ref": "#/$defs/uuid" },
+        "createdAt": { "$ref": "#/$defs/isoDate" },
+        "exportedAt": { "$ref": "#/$defs/isoDate" },
+        "assetMode": { "enum": ["embedded", "reference"] },
+        "assetPack": {
+          "type": "object",
+          "required": ["cobblemonVersion", "speciesHash"],
+          "properties": {
+            "cobblemonVersion": { "type": "string" },
+            "speciesHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          }
+        },
+        "contents": {
+          "type": "object",
+          "propertyNames": { "pattern": "^(?!mimetype$)(?!manifest\\.json$)[A-Za-z0-9_./-]+$" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["sha256", "bytes"],
+            "properties": {
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "bytes": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "signature": {
+          "type": "object",
+          "required": ["alg", "keyId", "signedAt", "value"],
+          "properties": {
+            "alg": { "const": "ed25519" },
+            "keyId": { "type": "string" },
+            "signedAt": { "$ref": "#/$defs/isoDate" },
+            "value": { "type": "string", "contentEncoding": "base64" }
+          }
+        }
+      },
+      "if": { "properties": { "assetMode": { "const": "reference" } } },
+      "then": { "required": ["assetPack"] }
+    },
+
+    "identity": {
+      "type": "object",
+      "required": ["pokemonId", "species", "nationalDex", "form", "aspects", "gender", "shiny", "nature", "ability", "originalTrainer", "currentTrainer", "hatchedAt", "origin"],
+      "properties": {
+        "pokemonId": { "$ref": "#/$defs/uuid" },
+        "species": { "$ref": "#/$defs/slug" },
+        "nationalDex": { "type": "integer", "minimum": 1 },
+        "form": { "$ref": "#/$defs/slug" },
+        "aspects": { "type": "array", "items": { "$ref": "#/$defs/slug" }, "uniqueItems": true },
+        "nickname": { "type": "string", "maxLength": 12 },
+        "gender": { "enum": ["male", "female", "genderless"] },
+        "shiny": { "type": "boolean" },
+        "nature": { "$ref": "#/$defs/slug" },
+        "ability": { "$ref": "#/$defs/slug" },
+        "hiddenAbility": { "type": "boolean" },
+        "ballType": { "$ref": "#/$defs/slug" },
+        "originalTrainer": { "$ref": "#/$defs/trainerRef" },
+        "currentTrainer": { "$ref": "#/$defs/trainerRef" },
+        "hatchedAt": { "$ref": "#/$defs/isoDate" },
+        "origin": { "enum": ["starter", "egg", "gift", "store", "event", "import"] }
+      }
+    },
+
+    "stats": {
+      "type": "object",
+      "required": ["level", "experience", "experienceGroup", "friendship", "ivs", "evs", "moves", "evolution"],
+      "properties": {
+        "level": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "experience": { "type": "integer", "minimum": 0 },
+        "experienceGroup": { "enum": ["erratic", "fast", "medium_fast", "medium_slow", "slow", "fluctuating"] },
+        "friendship": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "ivs": { "$ref": "#/$defs/statBlock" },
+        "evs": { "$ref": "#/$defs/statBlock" },
+        "moves": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["id", "pp", "maxPp"],
+            "properties": {
+              "id": { "$ref": "#/$defs/slug" },
+              "pp": { "type": "integer", "minimum": 0 },
+              "maxPp": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "weightKg": { "type": "number", "minimum": 0 },
+        "heightM": { "type": "number", "minimum": 0 },
+        "evolution": {
+          "type": "object",
+          "required": ["blocked", "stage"],
+          "properties": {
+            "blocked": { "type": "boolean" },
+            "declinedUntil": { "anyOf": [{ "$ref": "#/$defs/isoDate" }, { "type": "null" }] },
+            "stage": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+
+    "state": {
+      "type": "object",
+      "required": ["lastTickAt", "needs", "status", "asleep", "location", "activity", "ageDays", "careMistakes"],
+      "properties": {
+        "lastTickAt": { "$ref": "#/$defs/isoDate" },
+        "needs": { "$ref": "#/$defs/needs" },
+        "status": { "type": "array", "items": { "enum": ["poisoned", "burned", "paralyzed", "frozen"] }, "uniqueItems": true },
+        "asleep": { "type": "boolean" },
+        "sleepStartedAt": { "anyOf": [{ "$ref": "#/$defs/isoDate" }, { "type": "null" }] },
+        "lastMessAt": { "anyOf": [{ "$ref": "#/$defs/isoDate" }, { "type": "null" }] },
+        "sickness": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["kind", "since", "severity"],
+              "properties": {
+                "kind": { "$ref": "#/$defs/slug" },
+                "since": { "$ref": "#/$defs/isoDate" },
+                "severity": { "type": "integer", "minimum": 1, "maximum": 3 }
+              }
+            }
+          ]
+        },
+        "location": {
+          "type": "object",
+          "required": ["diorama"],
+          "properties": { "diorama": { "$ref": "#/$defs/slug" }, "spot": { "type": "string" } }
+        },
+        "activity": { "$ref": "#/$defs/slug" },
+        "ageDays": { "type": "number", "minimum": 0 },
+        "careMistakes": { "type": "integer", "minimum": 0 },
+        "flags": { "type": "object", "additionalProperties": { "type": "boolean" } }
+      }
+    },
+
+    "personality": {
+      "type": "object",
+      "required": ["traits", "temperament", "likes", "dislikes", "preferences", "decayMultipliers", "voice", "promptSeed"],
+      "properties": {
+        "traits": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 6 },
+        "temperament": { "type": "string" },
+        "likes": { "type": "array", "items": { "type": "string" } },
+        "dislikes": { "type": "array", "items": { "type": "string" } },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "dioramas": { "type": "array", "items": { "$ref": "#/$defs/slug" } },
+            "foods": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0, "maximum": 3 } }
+          }
+        },
+        "decayMultipliers": {
+          "type": "object",
+          "required": ["hunger", "energy", "hygiene", "fun", "affection", "health"],
+          "additionalProperties": { "type": "number", "minimum": 0.5, "maximum": 1.5 }
+        },
+        "voice": {
+          "type": "object",
+          "properties": {
+            "chatter": { "type": "string", "maxLength": 200 },
+            "quirks": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "promptSeed": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "episodicEvent": {
+      "type": "object",
+      "required": ["ts", "kind", "summary", "importance"],
+      "properties": {
+        "ts": { "$ref": "#/$defs/isoDate" },
+        "kind": { "enum": ["care", "play", "talk", "neglect", "milestone", "trade", "visit", "sickness", "evolution", "other"] },
+        "summary": { "type": "string", "maxLength": 280 },
+        "importance": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "trainerId": { "$ref": "#/$defs/uuid" },
+        "emotion": { "type": "string" }
+      }
+    },
+
+    "relationships": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["bond"],
+        "properties": {
+          "bond": { "$ref": "#/$defs/percent" },
+          "callsThem": { "type": "string", "maxLength": 40 },
+          "notes": { "type": "array", "items": { "type": "string", "maxLength": 200 }, "maxItems": 10 },
+          "lastSeenAt": { "$ref": "#/$defs/isoDate" }
+        }
+      }
+    },
+
+    "pokedex": {
+      "type": "object",
+      "required": ["species", "nationalDex", "types", "sourcedAt"],
+      "properties": {
+        "species": { "$ref": "#/$defs/slug" },
+        "nationalDex": { "type": "integer", "minimum": 1 },
+        "types": { "type": "array", "items": { "$ref": "#/$defs/slug" }, "minItems": 1, "maxItems": 2 },
+        "eggGroups": { "type": "array", "items": { "$ref": "#/$defs/slug" } },
+        "habitat": { "anyOf": [{ "$ref": "#/$defs/slug" }, { "type": "null" }] },
+        "generation": { "type": "integer", "minimum": 1 },
+        "flavorTexts": { "type": "array", "items": { "type": "string" } },
+        "cobblemonPokedexLines": { "type": "array", "items": { "type": "string" } },
+        "baseStats": { "$ref": "#/$defs/statBlock" },
+        "behaviour": { "type": "object" },
+        "evolutionChain": { "type": "object" },
+        "spawnBiomes": { "type": "array", "items": { "type": "string" } },
+        "sourcedAt": { "$ref": "#/$defs/isoDate" }
+      }
+    },
+
+    "inventory": {
+      "type": "object",
+      "required": ["heldItem", "cosmetics"],
+      "properties": {
+        "heldItem": { "anyOf": [{ "$ref": "#/$defs/slug" }, { "type": "null" }] },
+        "cosmetics": { "type": "array", "items": { "$ref": "#/$defs/slug" } }
+      }
+    },
+
+    "history": {
+      "type": "object",
+      "required": ["origin", "trainers", "trades", "milestones", "imports"],
+      "properties": {
+        "origin": {
+          "type": "object",
+          "required": ["kind", "at"],
+          "properties": { "kind": { "type": "string" }, "at": { "$ref": "#/$defs/isoDate" }, "detail": { "type": "string" } }
+        },
+        "trainers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["trainerId", "name", "from"],
+            "properties": {
+              "trainerId": { "$ref": "#/$defs/uuid" },
+              "name": { "type": "string" },
+              "from": { "$ref": "#/$defs/isoDate" },
+              "to": { "anyOf": [{ "$ref": "#/$defs/isoDate" }, { "type": "null" }] }
+            }
+          }
+        },
+        "trades": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["at", "fromInstall", "toInstall", "verified"],
+            "properties": {
+              "at": { "$ref": "#/$defs/isoDate" },
+              "fromInstall": { "type": "string" },
+              "toInstall": { "type": "string" },
+              "verified": { "type": "boolean" }
+            }
+          }
+        },
+        "milestones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["at", "kind"],
+            "properties": { "at": { "$ref": "#/$defs/isoDate" }, "kind": { "type": "string" }, "detail": { "type": "string" } }
+          }
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["at", "install", "verification"],
+            "properties": {
+              "at": { "$ref": "#/$defs/isoDate" },
+              "install": { "type": "string" },
+              "verification": { "enum": ["verified", "unverified", "unsigned"] }
+            }
+          }
+        }
+      }
+    },
+
+    "trade": {
+      "type": "object",
+      "required": ["nonce", "fromTrainerId", "offeredAt", "expiresAt"],
+      "properties": {
+        "nonce": { "type": "string", "minLength": 16 },
+        "fromTrainerId": { "$ref": "#/$defs/uuid" },
+        "toTrainerId": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "offeredAt": { "$ref": "#/$defs/isoDate" },
+        "expiresAt": { "$ref": "#/$defs/isoDate" }
+      }
+    }
+  }
+}

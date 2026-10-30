@@ -1,0 +1,33 @@
+{
+  "rootBone": "cube",
+  "portraitScale": 2,
+  "portraitTranslation": [0, -0.5, 0],
+  "profileScale": 0.8,
+  "profileTranslation": [0, 0.5, 0],
+  "animations": {
+    "cry": "q.bedrock_stateful('cube', 'cry')",
+    "faint": "q.bedrock_primary('cube', 'faint', 'look', q.curve('one'))"
+  },
+  "poses": {
+    "standing": {
+      "poseTypes": ["STAND", "NONE", "PORTRAIT", "PROFILE"],
+      "animations": ["q.look('head')", "q.bedrock('cube', 'ground_idle')"],
+      "quirks": ["q.bedrock_quirk('cube', 'blink')"],
+      "isBattle": "false"
+    },
+    "walking": {
+      "poseTypes": ["WALK"],
+      "animations": [
+        "q.bedrock('cube', 'ground_walk')",
+        { "animation": "q.bedrock('cube', 'ground_idle')", "condition": "q.is_ridden" },
+        { "namedAnimations": { "stray": "q.bedrock('cube', 'cry')" } }
+      ],
+      "quirks": ["q.bedrock_quirk('cube', q.array('blink', 'missing_quirk'), 30, 60, 1)"]
+    },
+    "sleeping": {
+      "poseTypes": ["SLEEP"],
+      "animations": ["q.bedrock('cube', 'sleep')"],
+      "isBattle": false
+    }
+  }
+}

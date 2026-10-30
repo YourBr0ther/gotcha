@@ -1,0 +1,32 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.cube.ground_idle": {
+      "loop": true,
+      "animation_length": 2,
+      "bones": {
+        "head": { "rotation": ["math.sin(q.anim_time*90*2)*3", 0, 0] },
+        "body": { "position": { "0.0": [0, 0, 0], "1.0": { "post": [0, "0.2+math.cos(query.anim_time*180)*0.1", 0], "lerp_mode": "catmullrom" }, "2.0": [0, 0, 0] } }
+      }
+    },
+    "animation.cube.ground_walk": {
+      "loop": true,
+      "animation_length": 1,
+      "bones": { "body": { "rotation": { "0.0": [0, 0, 0], "0.5": [0, 0, 5], "1.0": [0, 0, 0] } } }
+    },
+    "animation.cube.blink": {
+      "animation_length": 0.1667,
+      "bones": { "eyelid": { "position": { "0.0": [0, 0, -0.1], "0.1667": { "post": [0, 0, 0], "pre": [0, 0, -0.1] } } } }
+    },
+    "animation.cube.cry": {
+      "animation_length": 1.2,
+      "sound_effects": { "0.04": { "effect": "pokemon.cube.cry" } },
+      "bones": { "head": { "rotation": { "0.0": [0, 0, 0], "0.3": [-10, 0, 0], "1.2": [0, 0, 0] } } }
+    },
+    "animation.cube.faint": {
+      "loop": "hold_on_last_frame",
+      "animation_length": 1,
+      "bones": { "cube": { "rotation": { "0.0": [0, 0, 0], "1.0": [0, 0, 90] } } }
+    }
+  }
+}

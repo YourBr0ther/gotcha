@@ -1,0 +1,62 @@
+{
+  "entries": [
+    {
+      "conditionAspects": [],
+      "displayAspects": [],
+      "forms": [
+        {
+          "displayForm": "Alola-Bias",
+          "unlockForms": [
+            "Alola-Bias"
+          ]
+        }
+      ],
+      "id": "cobblemon:pikachu-alolabias",
+      "source": "pikachu-alolabias.json",
+      "speciesId": "cobblemon:pikachu",
+      "variations": []
+    },
+    {
+      "conditionAspects": [],
+      "displayAspects": [],
+      "forms": [
+        {
+          "displayForm": "Normal",
+          "unlockForms": [
+            "Normal"
+          ]
+        },
+        {
+          "displayForm": "Partner",
+          "unlockForms": [
+            "Partner"
+          ]
+        },
+        {
+          "displayForm": "Gmax",
+          "unlockForms": [
+            "Gmax"
+          ]
+        }
+      ],
+      "id": "cobblemon:pikachu",
+      "source": "pikachu.json",
+      "speciesId": "cobblemon:pikachu",
+      "variations": []
+    }
+  ],
+  "lines": {
+    "cobblemon.species.pikachu-alola.desc": "This Pikachu is wearing its Trainer's cap. Since the cap's not the right size, the fit is a bit loose.",
+    "cobblemon.species.pikachu-alolabias.desc": "This Pokémon has electricity-storing pouches on its cheeks. These appear to become electrically charged during the night while Pikachu sleeps. It occasionally discharges electricity when it is dozy after waking up.",
+    "cobblemon.species.pikachu-gmax.desc": "Its Gigantamax power expanded, forming its supersized body and towering tail.",
+    "cobblemon.species.pikachu-hoenn.desc": "This Pikachu is wearing its Trainer's cap. Since the cap's not the right size, the fit is a bit loose.",
+    "cobblemon.species.pikachu-kalos.desc": "This Pikachu is wearing its Trainer's cap. Since the cap's not the right size, the fit is a bit loose.",
+    "cobblemon.species.pikachu-original.desc": "This Pikachu is wearing its Trainer's cap. Since the cap's not the right size, the fit is a bit loose.",
+    "cobblemon.species.pikachu-partner.desc": "This Pikachu is wearing its Trainer's cap. Since the cap's not the right size, the fit is a bit loose.",
+    "cobblemon.species.pikachu-sinnoh.desc": "This Pikachu is wearing its Trainer's cap. Since the cap's not the right size, the fit is a bit loose.",
+    "cobblemon.species.pikachu-unova.desc": "This Pikachu is wearing its Trainer's cap. Since the cap's not the right size, the fit is a bit loose.",
+    "cobblemon.species.pikachu-world.desc": "This Pikachu wears its partner's cap, which is brimming with memories of traveling through different regions.",
+    "cobblemon.species.pikachu.desc": "This Pokémon has electricity-storing pouches on its cheeks. These appear to become electrically charged during the night while Pikachu sleeps. It occasionally discharges electricity when it is dozy after waking up.",
+    "cobblemon.species.pikachu.name": "Pikachu"
+  }
+}

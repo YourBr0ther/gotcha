@@ -1,0 +1,285 @@
+{
+  "0041_zubat.json": {
+    "enabled": true,
+    "neededInstalledMods": [],
+    "neededUninstalledMods": [],
+    "spawns": [
+      {
+        "anticondition": {
+          "biomes": [
+            "#cobblemon:is_spooky",
+            "#cobblemon:is_freezing"
+          ],
+          "structures": [
+            "#cobblemon:spawns/is_graveyard"
+          ]
+        },
+        "bucket": "common",
+        "condition": {
+          "biomes": [
+            "#cobblemon:is_forest",
+            "#cobblemon:is_swamp"
+          ],
+          "isRaining": false,
+          "maxSkyLight": 15,
+          "minSkyLight": 8,
+          "timeRange": "night"
+        },
+        "id": "zubat-1",
+        "level": "1-25",
+        "pokemon": "zubat",
+        "presets": [
+          "natural"
+        ],
+        "spawnablePositionType": "grounded",
+        "type": "pokemon",
+        "weight": 9,
+        "weightMultiplier": {
+          "condition": {
+            "isPokeSnack": true
+          },
+          "multiplier": 2
+        }
+      },
+      {
+        "anticondition": {
+          "biomes": [
+            "#cobblemon:is_spooky",
+            "#cobblemon:is_freezing"
+          ]
+        },
+        "bucket": "common",
+        "condition": {
+          "biomes": [
+            "#cobblemon:is_forest",
+            "#cobblemon:is_swamp"
+          ],
+          "maxSkyLight": 7,
+          "minSkyLight": 0
+        },
+        "id": "zubat-2",
+        "level": "1-25",
+        "pokemon": "zubat",
+        "presets": [
+          "natural"
+        ],
+        "spawnablePositionType": "grounded",
+        "type": "pokemon",
+        "weight": 9,
+        "weightMultipliers": [
+          {
+            "condition": {
+              "timeRange": "night"
+            },
+            "multiplier": 0.25
+          },
+          {
+            "condition": {
+              "isPokeSnack": true
+            },
+            "multiplier": 2
+          }
+        ]
+      },
+      {
+        "anticondition": {
+          "biomes": [
+            "#cobblemon:is_deep_dark",
+            "#cobblemon:is_forest",
+            "#cobblemon:is_swamp"
+          ]
+        },
+        "bucket": "common",
+        "condition": {
+          "biomes": [
+            "#cobblemon:is_overworld"
+          ],
+          "maxSkyLight": 7,
+          "minSkyLight": 0
+        },
+        "id": "zubat-3",
+        "level": "1-25",
+        "pokemon": "zubat",
+        "presets": [
+          "natural"
+        ],
+        "spawnablePositionType": "grounded",
+        "type": "pokemon",
+        "weight": 27,
+        "weightMultipliers": [
+          {
+            "condition": {
+              "timeRange": "day"
+            },
+            "multiplier": 1.5
+          },
+          {
+            "condition": {
+              "isPokeSnack": true
+            },
+            "multiplier": 2
+          }
+        ]
+      },
+      {
+        "anticondition": {
+          "biomes": [
+            "#cobblemon:is_deep_dark",
+            "#cobblemon:is_forest",
+            "#cobblemon:is_swamp"
+          ]
+        },
+        "bucket": "uncommon",
+        "condition": {
+          "biomes": [
+            "#cobblemon:is_overworld"
+          ],
+          "canSeeSky": false
+        },
+        "id": "zubat-4",
+        "level": "1-25",
+        "pokemon": "zubat",
+        "presets": [
+          "derelict"
+        ],
+        "spawnablePositionType": "grounded",
+        "type": "pokemon",
+        "weight": 25.2,
+        "weightMultipliers": [
+          {
+            "condition": {
+              "timeRange": "day"
+            },
+            "multiplier": 1.5
+          },
+          {
+            "condition": {
+              "isPokeSnack": true
+            },
+            "multiplier": 2
+          }
+        ]
+      },
+      {
+        "anticondition": {
+          "structures": [
+            "#cobblemon:spawns/is_graveyard"
+          ]
+        },
+        "bucket": "common",
+        "condition": {
+          "biomes": [
+            "#cobblemon:is_spooky"
+          ],
+          "isRaining": false,
+          "maxSkyLight": 15,
+          "minSkyLight": 8
+        },
+        "id": "zubat-5",
+        "level": "1-25",
+        "pokemon": "zubat",
+        "presets": [
+          "natural"
+        ],
+        "spawnablePositionType": "grounded",
+        "type": "pokemon",
+        "weight": 27,
+        "weightMultipliers": [
+          {
+            "condition": {
+              "timeRange": "night"
+            },
+            "multiplier": 1.5
+          },
+          {
+            "condition": {
+              "isPokeSnack": true
+            },
+            "multiplier": 2
+          }
+        ]
+      },
+      {
+        "bucket": "uncommon",
+        "condition": {
+          "biomes": [
+            "#cobblemon:is_deep_dark"
+          ],
+          "maxSkyLight": 7,
+          "minSkyLight": 0
+        },
+        "id": "zubat-6",
+        "level": "1-25",
+        "pokemon": "zubat",
+        "presets": [
+          "natural"
+        ],
+        "spawnablePositionType": "grounded",
+        "type": "pokemon",
+        "weight": 25.2,
+        "weightMultiplier": {
+          "condition": {
+            "isPokeSnack": true
+          },
+          "multiplier": 2
+        }
+      },
+      {
+        "bucket": "common",
+        "condition": {
+          "biomes": [
+            "#cobblemon:is_overworld"
+          ],
+          "isRaining": false,
+          "maxSkyLight": 15,
+          "minSkyLight": 8,
+          "minY": 62,
+          "structures": [
+            "#cobblemon:spawns/is_graveyard"
+          ],
+          "timeRange": "night"
+        },
+        "id": "zubat-7",
+        "level": "1-25",
+        "pokemon": "zubat",
+        "presets": [
+          "natural"
+        ],
+        "spawnablePositionType": "grounded",
+        "type": "pokemon",
+        "weight": 27,
+        "weightMultiplier": {
+          "condition": {
+            "isPokeSnack": true
+          },
+          "multiplier": 2
+        }
+      },
+      {
+        "bucket": "common",
+        "condition": {
+          "biomes": [
+            "#aether:is_aether"
+          ],
+          "maxSkyLight": 7,
+          "minSkyLight": 0
+        },
+        "id": "zubat-8",
+        "level": "1-25",
+        "pokemon": "zubat",
+        "presets": [
+          "natural"
+        ],
+        "spawnablePositionType": "grounded",
+        "type": "pokemon",
+        "weight": 27,
+        "weightMultiplier": {
+          "condition": {
+            "isPokeSnack": true
+          },
+          "multiplier": 2
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,428 @@
+{
+ "id": 133,
+ "name": "eevee",
+ "base_happiness": 70,
+ "capture_rate": 45,
+ "growth_rate": {
+  "name": "medium",
+  "url": "https://pokeapi.co/api/v2/growth-rate/2/"
+ },
+ "egg_groups": [
+  {
+   "name": "ground",
+   "url": "https://pokeapi.co/api/v2/egg-group/5/"
+  }
+ ],
+ "habitat": {
+  "name": "urban",
+  "url": "https://pokeapi.co/api/v2/pokemon-habitat/8/"
+ },
+ "generation": {
+  "name": "generation-i",
+  "url": "https://pokeapi.co/api/v2/generation/1/"
+ },
+ "evolution_chain": {
+  "url": "https://pokeapi.co/api/v2/evolution-chain/67/"
+ },
+ "is_legendary": false,
+ "is_mythical": false,
+ "flavor_text_entries": [
+  {
+   "flavor_text": "Son ADN particulier lui permet de\ns’adapter très rapidement à son\nenvironnement.",
+   "language": {
+    "name": "fr",
+    "url": "https://pokeapi.co/api/v2/language/5/"
+   },
+   "version": {
+    "name": "black",
+    "url": "https://pokeapi.co/api/v2/version/17/"
+   }
+  },
+  {
+   "flavor_text": "Its genetic code\nis irregular.\nIt may mutate if\fit is exposed to\nradiation from\nelement STONEs.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "red",
+    "url": "https://pokeapi.co/api/v2/version/1/"
+   }
+  },
+  {
+   "flavor_text": "Its genetic code\nis irregular.\nIt may mutate if\fit is exposed to\nradiation from\nelement STONEs.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "blue",
+    "url": "https://pokeapi.co/api/v2/version/2/"
+   }
+  },
+  {
+   "flavor_text": "Its genetic code\nis unstable, so it\ncould evolve in\fa variety of ways.\nThere are only a\nfew alive.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "yellow",
+    "url": "https://pokeapi.co/api/v2/version/3/"
+   }
+  },
+  {
+   "flavor_text": "It has the ability\nto alter the com­\nposition of its\fbody to suit its\nsurrounding envi­\nronment.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "gold",
+    "url": "https://pokeapi.co/api/v2/version/4/"
+   }
+  },
+  {
+   "flavor_text": "Its irregularly\nconfigured DNA is\naffected by its\fsurroundings. It\nevolves if its en­\nvironment changes.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "silver",
+    "url": "https://pokeapi.co/api/v2/version/5/"
+   }
+  },
+  {
+   "flavor_text": "Its ability to\nevolve into many\nforms allows it to\fadapt smoothly\nand perfectly to\nany environment.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "crystal",
+    "url": "https://pokeapi.co/api/v2/version/6/"
+   }
+  },
+  {
+   "flavor_text": "EEVEE has an unstable genetic makeup\nthat suddenly mutates due to the\nenvironment in which it lives.\fRadiation from various STONES causes\nthis POKéMON to evolve.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "ruby",
+    "url": "https://pokeapi.co/api/v2/version/7/"
+   }
+  },
+  {
+   "flavor_text": "EEVEE has an unstable genetic makeup\nthat suddenly mutates due to the\nenvironment in which it lives.\fRadiation from various STONES causes\nthis POKéMON to evolve.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "sapphire",
+    "url": "https://pokeapi.co/api/v2/version/8/"
+   }
+  },
+  {
+   "flavor_text": "An EEVEE has an unstable genetic makeup\nthat suddenly mutates due to its\nenvironment. Radiation from various\nSTONES causes this POKéMON to evolve.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "emerald",
+    "url": "https://pokeapi.co/api/v2/version/9/"
+   }
+  },
+  {
+   "flavor_text": "An extremely rare POKéMON that may\nevolve in a number of different ways\ndepending on stimuli.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "firered",
+    "url": "https://pokeapi.co/api/v2/version/10/"
+   }
+  },
+  {
+   "flavor_text": "Its genetic code is irregular. It may\nmutate if it is exposed to radiation from\nelement STONES.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "leafgreen",
+    "url": "https://pokeapi.co/api/v2/version/11/"
+   }
+  },
+  {
+   "flavor_text": "A rare Pokémon that adapts to\nharsh environments by taking on\ndifferent evolutionary forms.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "diamond",
+    "url": "https://pokeapi.co/api/v2/version/12/"
+   }
+  },
+  {
+   "flavor_text": "A rare Pokémon that adapts to\nharsh environments by taking on\ndifferent evolutionary forms.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "pearl",
+    "url": "https://pokeapi.co/api/v2/version/13/"
+   }
+  },
+  {
+   "flavor_text": "Because its genetic makeup is\nirregular, it quickly changes its\nform due to a variety of causes.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "platinum",
+    "url": "https://pokeapi.co/api/v2/version/14/"
+   }
+  },
+  {
+   "flavor_text": "It has the ability to alter the\ncomposition of its body to suit its\nsurrounding environment.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "heartgold",
+    "url": "https://pokeapi.co/api/v2/version/15/"
+   }
+  },
+  {
+   "flavor_text": "Its irregularly configured DNA is\naffected by its surroundings. It\nevolves if its environment changes.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "soulsilver",
+    "url": "https://pokeapi.co/api/v2/version/16/"
+   }
+  },
+  {
+   "flavor_text": "Because its genetic makeup is\nirregular, it quickly changes its\nform due to a variety of causes.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "black",
+    "url": "https://pokeapi.co/api/v2/version/17/"
+   }
+  },
+  {
+   "flavor_text": "Because its genetic makeup is\nirregular, it quickly changes its\nform due to a variety of causes.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "white",
+    "url": "https://pokeapi.co/api/v2/version/18/"
+   }
+  },
+  {
+   "flavor_text": "Thanks to its unstable genetic makeup,\nthis special Pokémon conceals many\ndifferent possible evolutions.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "black-2",
+    "url": "https://pokeapi.co/api/v2/version/21/"
+   }
+  },
+  {
+   "flavor_text": "Thanks to its unstable genetic makeup,\nthis special Pokémon conceals many\ndifferent possible evolutions.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "white-2",
+    "url": "https://pokeapi.co/api/v2/version/22/"
+   }
+  },
+  {
+   "flavor_text": "A rare Pokémon that adapts to harsh environments\nby taking on different evolutionary forms.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "x",
+    "url": "https://pokeapi.co/api/v2/version/23/"
+   }
+  },
+  {
+   "flavor_text": "Thanks to its unstable genetic makeup, this\nspecial Pokémon conceals many different\npossible evolutions.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "y",
+    "url": "https://pokeapi.co/api/v2/version/24/"
+   }
+  },
+  {
+   "flavor_text": "Eevee has an unstable genetic makeup that suddenly mutates\ndue to the environment in which it lives. Radiation from various\nstones causes this Pokémon to evolve.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "omega-ruby",
+    "url": "https://pokeapi.co/api/v2/version/25/"
+   }
+  },
+  {
+   "flavor_text": "Eevee has an unstable genetic makeup that suddenly mutates\ndue to the environment in which it lives. Radiation from various\nstones causes this Pokémon to evolve.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "alpha-sapphire",
+    "url": "https://pokeapi.co/api/v2/version/26/"
+   }
+  },
+  {
+   "flavor_text": "Possessing an unbalanced and unstable genetic\nmakeup, it conceals many possible evolutions.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "sun",
+    "url": "https://pokeapi.co/api/v2/version/27/"
+   }
+  },
+  {
+   "flavor_text": "Current studies show it can evolve into an\nincredible eight different species of Pokémon.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "moon",
+    "url": "https://pokeapi.co/api/v2/version/28/"
+   }
+  },
+  {
+   "flavor_text": "The question of why only Eevee has such\nunstable genes has still not been solved.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "ultra-sun",
+    "url": "https://pokeapi.co/api/v2/version/29/"
+   }
+  },
+  {
+   "flavor_text": "Its genes are easily influenced by its\nsurroundings. Even its face starts to look like\nthat of its Trainer.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "ultra-moon",
+    "url": "https://pokeapi.co/api/v2/version/30/"
+   }
+  },
+  {
+   "flavor_text": "It can evolve into a variety of forms.\nEevee’s genes are the key to solving\nthe mysteries of Pokémon evolution.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "lets-go-pikachu",
+    "url": "https://pokeapi.co/api/v2/version/31/"
+   }
+  },
+  {
+   "flavor_text": "It can evolve into a variety of forms.\nEevee’s genes are the key to solving\nthe mysteries of Pokémon evolution.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "lets-go-eevee",
+    "url": "https://pokeapi.co/api/v2/version/32/"
+   }
+  },
+  {
+   "flavor_text": "It has the ability to alter the composition of its\nbody to suit its surrounding environment.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "sword",
+    "url": "https://pokeapi.co/api/v2/version/33/"
+   }
+  },
+  {
+   "flavor_text": "Thanks to its unstable genetic makeup, this\nspecial Pokémon conceals many different\npossible evolutions.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "shield",
+    "url": "https://pokeapi.co/api/v2/version/34/"
+   }
+  },
+  {
+   "flavor_text": "Harbors the potential to evolve into manifold forms.\nWithin Eevee lies the key to the mysteries of Pokémon\nevolution—I'm certain of it.",
+   "language": {
+    "name": "en",
+    "url": "https://pokeapi.co/api/v2/language/9/"
+   },
+   "version": {
+    "name": "legends-arceus",
+    "url": "https://pokeapi.co/api/v2/version/39/"
+   }
+  }
+ ],
+ "varieties": [
+  {
+   "is_default": true,
+   "pokemon": {
+    "name": "eevee",
+    "url": "https://pokeapi.co/api/v2/pokemon/133/"
+   }
+  },
+  {
+   "is_default": false,
+   "pokemon": {
+    "name": "eevee-starter",
+    "url": "https://pokeapi.co/api/v2/pokemon/10159/"
+   }
+  },
+  {
+   "is_default": false,
+   "pokemon": {
+    "name": "eevee-gmax",
+    "url": "https://pokeapi.co/api/v2/pokemon/10205/"
+   }
+  }
+ ]
+}

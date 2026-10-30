@@ -1,0 +1,10 @@
+{
+  "order": 0,
+  "species": "cobblemon:cube",
+  "variations": [
+    { "aspects": [], "layers": [], "model": "cobblemon:cube.geo", "poser": "cobblemon:cube", "texture": "cobblemon:textures/pokemon/0001_cube/cube.png" },
+    { "aspects": ["shiny"], "texture": "cobblemon:textures/pokemon/0001_cube/cube_shiny.png" },
+    { "aspects": ["alpha_eyes"], "layers": [{ "emissive": "true", "name": "alpha_eyes", "texture": "cobblemon:textures/pokemon/0001_cube/cube_alpha.png" }] },
+    { "aspects": ["glow"], "layers": [{ "emissive": true, "name": "glow", "texture": { "fps": 8, "frames": ["cobblemon:textures/pokemon/0001_cube/glow/cube_glow_1.png", "cobblemon:textures/pokemon/0001_cube/glow/cube_glow_2.png"], "loop": true } }] }
+  ]
+}

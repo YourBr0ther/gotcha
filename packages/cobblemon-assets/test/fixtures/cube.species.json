@@ -1,0 +1,14 @@
+{
+  "name": "Cube",
+  "nationalPokedexNumber": 1,
+  "implemented": true,
+  "primaryType": "normal",
+  "baseScale": 0.5,
+  "hitbox": { "width": 0.6, "height": 0.6, "fixed": false },
+  "experienceGroup": "medium_fast",
+  "maleRatio": 0.5,
+  "pokedex": ["cobblemon.species.cube.desc"],
+  "forms": [{ "name": "Gmax", "aspects": ["gmax"], "pokedex": ["cobblemon.species.cube-gmax.desc"] }],
+  "behaviour": { "moving": { "walk": { "walkSpeed": 0.3 }, "swim": { "avoidsWater": true } }, "resting": { "drowsyChance": 0.03, "rouseChance": 0.004 } },
+  "evolutions": []
+}

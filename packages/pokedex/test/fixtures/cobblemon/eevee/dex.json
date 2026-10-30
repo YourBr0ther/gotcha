@@ -1,0 +1,31 @@
+{
+  "entries": [
+    {
+      "conditionAspects": [],
+      "displayAspects": [],
+      "forms": [
+        {
+          "displayForm": "Normal",
+          "unlockForms": [
+            "Normal"
+          ]
+        },
+        {
+          "displayForm": "Gmax",
+          "unlockForms": [
+            "Gmax"
+          ]
+        }
+      ],
+      "id": "cobblemon:eevee",
+      "source": "eevee.json",
+      "speciesId": "cobblemon:eevee",
+      "variations": []
+    }
+  ],
+  "lines": {
+    "cobblemon.species.eevee-gmax.desc": "Gigantamax energy upped the fluffiness of the fur around Eevee's neck. The fur will envelop a foe, capturing its body and captivating its mind.",
+    "cobblemon.species.eevee.desc": "Eevee has an unstable genetic makeup that suddenly mutates due to the environment in which it lives. Radiation from various stones causes this Pokémon to evolve.",
+    "cobblemon.species.eevee.name": "Eevee"
+  }
+}

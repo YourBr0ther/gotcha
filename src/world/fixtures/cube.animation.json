@@ -1,0 +1,90 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.cube.ground_idle": {
+      "loop": true,
+      "animation_length": 2.0,
+      "bones": {
+        "head": {
+          "rotation": {
+            "0.0": [0, 0, 0],
+            "0.5": { "post": [0, 15, 0], "lerp_mode": "catmullrom" },
+            "1.5": { "post": [0, -15, 0], "lerp_mode": "catmullrom" },
+            "2.0": [0, 0, 0]
+          }
+        },
+        "body": {
+          "scale": [
+            "1 + math.sin(q.anim_time * 180) * 0.02",
+            "1 - math.sin(q.anim_time * 180) * 0.02",
+            "1 + math.sin(q.anim_time * 180) * 0.02"
+          ]
+        }
+      }
+    },
+    "animation.cube.ground_walk": {
+      "loop": true,
+      "animation_length": 0.6667,
+      "bones": {
+        "body": {
+          "position": [0, "math.abs(math.sin(q.anim_time * 540)) * 1.5", 0],
+          "rotation": [0, 0, "math.sin(q.anim_time * 540) * 6"]
+        },
+        "head": {
+          "rotation": {
+            "0.0": [-8, 0, 0],
+            "0.3333": [8, 0, 0],
+            "0.6667": [-8, 0, 0]
+          }
+        }
+      }
+    },
+    "animation.cube.sleep": {
+      "loop": true,
+      "animation_length": 3.0,
+      "bones": {
+        "body": {
+          "position": [0, -1.5, 0],
+          "scale": [1, "0.96 + math.sin(q.anim_time * 120) * 0.03", 1]
+        },
+        "head": { "rotation": [35, 0, 0], "position": [0, -1, 0.5] }
+      }
+    },
+    "animation.cube.cry": {
+      "loop": false,
+      "animation_length": 0.8,
+      "bones": {
+        "head": {
+          "rotation": { "0.0": [0, 0, 0], "0.15": [-35, 0, 0], "0.6": [-30, 0, 0], "0.8": [0, 0, 0] },
+          "scale": { "0.0": [1, 1, 1], "0.15": [1.15, 1.15, 1.15], "0.6": [1.1, 1.1, 1.1], "0.8": [1, 1, 1] }
+        }
+      }
+    },
+    "animation.cube.faint": {
+      "loop": "hold_on_last_frame",
+      "animation_length": 1.0,
+      "bones": {
+        "body": {
+          "rotation": { "0.0": [0, 0, 0], "0.3": [0, 0, -20], "0.7": [0, 0, 95], "1.0": [0, 0, 90] },
+          "position": { "0.0": [0, 0, 0], "0.7": [-2, 0, 0], "1.0": [-2.5, 0, 0] }
+        }
+      }
+    },
+    "animation.cube.blink": {
+      "loop": false,
+      "animation_length": 0.3,
+      "bones": {
+        "head": {
+          "scale": { "0.0": [1, 1, 1], "0.1": [1.05, 0.8, 1], "0.2": [1.05, 0.8, 1], "0.3": [1, 1, 1] }
+        }
+      }
+    },
+    "animation.cube.unsupported": {
+      "loop": true,
+      "animation_length": 0.5,
+      "bones": {
+        "head": { "rotation": ["q.is_on_ground * 5", 0, 0] }
+      }
+    }
+  }
+}

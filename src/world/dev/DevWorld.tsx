@@ -1,0 +1,125 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { EmoteKind, WorldHandle } from "../api";
+import { localHours } from "../api";
+import { createCubeBundle } from "../fixtures";
+import World from "../World";
+import { loadCacheBundle } from "./cacheBundle";
+
+const ROUTE = ["forage_1", "play_1", "forage_2", "sleep_1", "play_1"] as const;
+const EMOTES: EmoteKind[] = ["happy", "love", "question", "music", "surprise"];
+
+function wait(ms: number, alive: { current: boolean }): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    if (!alive.current) clearTimeout(t);
+  });
+}
+
+interface Params {
+  debug: boolean;
+  hour: number | null;
+  /** A species from .cobblemon-cache, or null for the synthetic cube. */
+  species: string | null;
+  aspects: string[];
+  /** demo=0 holds the creature at the spawn spot, for framing checks. */
+  demo: boolean;
+}
+
+function readParams(): Params {
+  const q = new URLSearchParams(window.location.search);
+  const hour = q.get("hour");
+  const aspects = (q.get("aspects") ?? "").split(",").filter(Boolean);
+  return {
+    debug: q.get("debug") === "1",
+    hour: hour !== null ? parseFloat(hour) : null,
+    species: q.get("species"),
+    aspects,
+    demo: q.get("demo") !== "0",
+  };
+}
+
+export default function DevWorld() {
+  const [params] = useState<Params>(readParams);
+  const [status, setStatus] = useState("loading");
+  const handleRef = useRef<WorldHandle | null>(null);
+
+  const onReady = useCallback((handle: WorldHandle) => {
+    handleRef.current = handle;
+  }, []);
+
+  useEffect(() => {
+    const alive = { current: true };
+    const run = async () => {
+      // onReady fires in an effect of the child, so it has run by now.
+      const handle = handleRef.current;
+      if (!handle) return;
+      handle.setTimeOfDay(params.hour ?? localHours());
+      setStatus(params.species ? `loading ${params.species}` : "loading cube");
+      const bundle = params.species ? await loadCacheBundle(params.species, params.aspects) : createCubeBundle();
+      await handle.setPokemon(bundle, params.aspects);
+      setStatus("idle");
+      await wait(1500, alive);
+      let i = 0;
+      let emotes = 0;
+      if (!params.demo) {
+        while (alive.current) {
+          handle.emote(EMOTES[emotes++ % EMOTES.length]);
+          await wait(3000, alive);
+          handle.cry();
+          await wait(3000, alive);
+        }
+        return;
+      }
+      while (alive.current) {
+        const spot = ROUTE[i % ROUTE.length];
+        setStatus(`walking to ${spot}`);
+        const arrived = await handle.moveTo(spot);
+        if (!alive.current) break;
+        if (!arrived) {
+          setStatus(`could not reach ${spot}`);
+          await wait(1000, alive);
+          i++;
+          continue;
+        }
+        if (spot.startsWith("sleep")) {
+          handle.play("sleep");
+          setStatus("sleeping");
+          handle.emote("sleepy");
+          await wait(5000, alive);
+          handle.play("idle");
+        } else {
+          setStatus(`idle at ${spot}`);
+          handle.emote(EMOTES[emotes++ % EMOTES.length]);
+          await wait(1200, alive);
+          if (i % 2 === 1) {
+            handle.cry();
+            await wait(900, alive);
+          }
+          await wait(1200, alive);
+        }
+        i++;
+      }
+    };
+    run().catch((err) => {
+      console.error(err);
+      setStatus(`error: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    return () => {
+      alive.current = false;
+    };
+  }, [params]);
+
+  useEffect(() => {
+    if (params.hour !== null) return;
+    const id = setInterval(() => handleRef.current?.setTimeOfDay(localHours()), 30_000);
+    return () => clearInterval(id);
+  }, [params.hour]);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "#0b1026" }}>
+      <World onReady={onReady} debug={params.debug} debugExtra={status} />
+    </div>
+  );
+}

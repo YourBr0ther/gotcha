@@ -1,0 +1,22 @@
+{
+  "cobblemonVersion": "1.8.4+1.21.1",
+  "format": 1,
+  "species": {
+    "eevee": {
+      "name": "Eevee",
+      "dex": 133
+    },
+    "magikarp": {
+      "name": "Magikarp",
+      "dex": 129
+    },
+    "pikachu": {
+      "name": "Pikachu",
+      "dex": 25
+    },
+    "zubat": {
+      "name": "Zubat",
+      "dex": 41
+    }
+  }
+}

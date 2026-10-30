@@ -1,0 +1,56 @@
+{
+  "name": "gotcha",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit -p .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/lib/db/migrate.ts",
+    "sim:balance": "tsx scripts/sim-balance.ts",
+    "assets:extract": "tsx packages/cobblemon-assets/src/cli.ts extract",
+    "assets:check": "tsx packages/cobblemon-assets/src/cli.ts check",
+    "pokedex:build": "tsx packages/pokedex/src/cli.ts build",
+    "pokedex:refresh": "tsx packages/pokedex/src/cli.ts build --refresh",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.34",
+    "@gotcha/cpkmn": "workspace:*",
+    "@react-three/drei": "^10.7.6",
+    "@react-three/fiber": "^9.3.0",
+    "ai": "^7.0.73",
+    "drizzle-orm": "^0.45.2",
+    "next": "16.4.3",
+    "postgres": "^3.4.9",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "three": "^0.180.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.180.0",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "tailwindcss": "^4",
+    "tsx": "^4.20.0",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
+  }
+}
