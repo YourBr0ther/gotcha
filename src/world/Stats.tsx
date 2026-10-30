@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
+import { loadSummary, type LoadSummary } from "./perf";
 
 export interface StatsSample {
   fps: number;
@@ -14,6 +15,22 @@ export interface StatsSample {
   frameMs: number;
   /** The worst frame in the sample. */
   frameMaxMs: number;
+  /** Shader programs the renderer holds. */
+  programs: number;
+}
+
+/** What `window.__worldStats` holds: the latest sample, the load timings and the overlay's extra line. */
+export interface WorldStats extends StatsSample {
+  load: LoadSummary;
+  extra?: string;
+  /** When the sample was taken, ms from navigation. */
+  at: number;
+}
+
+declare global {
+  interface Window {
+    __worldStats?: WorldStats;
+  }
 }
 
 /** Lives inside the Canvas; reports a sample twice a second. */
@@ -81,6 +98,7 @@ export function StatsProbe({ onSample }: { onSample: (s: StatsSample) => void })
         height: size.height,
         frameMs: frames.current ? frameTotal.current / frames.current : 0,
         frameMaxMs: frameMax.current,
+        programs: gl.info.programs?.length ?? 0,
       });
       frames.current = 0;
       calls.current = 0;
@@ -93,7 +111,22 @@ export function StatsProbe({ onSample }: { onSample: (s: StatsSample) => void })
   return null;
 }
 
-/** DOM overlay; sits outside the Canvas. */
+/** Publish a sample on `window.__worldStats`, so a playtest can read the numbers without the DOM. */
+export function publishStats(sample: StatsSample, extra?: string): WorldStats {
+  const stats: WorldStats = { ...sample, load: loadSummary(), extra, at: Math.round(performance.now()) };
+  if (typeof window !== "undefined") window.__worldStats = stats;
+  return stats;
+}
+
+function ms(v: number | null): string {
+  return v === null ? "-" : `${v}ms`;
+}
+
+/**
+ * DOM overlay; sits outside the Canvas. Top left, under the status bar's
+ * safe area, so the app's bottom tab bar never covers it. Press `d` to
+ * hide it.
+ */
 export function DebugOverlay({ sample, extra }: { sample: StatsSample | null; extra?: string }) {
   const [visible, setVisible] = useState(true);
   useEffect(() => {
@@ -104,26 +137,31 @@ export function DebugOverlay({ sample, extra }: { sample: StatsSample | null; ex
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   if (!visible) return null;
+  const load = loadSummary();
   return (
     <div
       data-testid="world-stats"
       style={{
         position: "absolute",
-        left: 8,
-        bottom: 8,
-        padding: "6px 8px",
-        background: "rgba(10,12,20,0.72)",
-        color: "#dfe8ff",
-        font: "11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace",
-        borderRadius: 6,
+        top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+        left: "calc(env(safe-area-inset-left, 0px) + 8px)",
+        maxWidth: "calc(100% - 16px)",
+        padding: "6px 10px",
+        background: "rgba(6, 8, 16, 0.92)",
+        color: "#eaf0ff",
+        font: "10px/1.5 var(--font-pixel, ui-monospace, monospace)",
+        textShadow: "0 1px 0 rgba(0,0,0,0.8)",
+        borderRadius: 10,
+        boxShadow: "0 0 0 1px rgba(255,255,255,0.12)",
         pointerEvents: "none",
         whiteSpace: "pre",
-        zIndex: 10,
+        zIndex: 60,
       }}
     >
       {sample
-        ? `fps ${sample.fps.toFixed(0)}  draw calls ${sample.calls}  tris ${(sample.triangles / 1000).toFixed(1)}k\n` +
-          `frame ${sample.frameMs.toFixed(1)}ms (max ${sample.frameMaxMs.toFixed(1)})  dpr ${sample.dpr.toFixed(2)}  ${sample.width}x${sample.height}` +
+        ? `fps ${sample.fps.toFixed(0)}  calls ${sample.calls}  tris ${(sample.triangles / 1000).toFixed(1)}k  prog ${sample.programs}\n` +
+          `frame ${sample.frameMs.toFixed(1)}ms (max ${sample.frameMaxMs.toFixed(1)})  dpr ${sample.dpr.toFixed(2)}  ${sample.width}x${sample.height}\n` +
+          `load bundle ${ms(load.bundleMs)}  build ${ms(load.creatureMs)}  visible ${ms(load.visibleAt)}` +
           (extra ? `\n${extra}` : "")
         : "sampling..."}
     </div>

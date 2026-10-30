@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import cubeAnim from "../fixtures/cube.animation.json";
 import cubeGeo from "../fixtures/cube.geo.json";
-import { buildClip, buildClips, parseChannel, sampleChannel, SAMPLE_HZ } from "./animation";
+import { buildClip, buildClips, createClipLibrary, parseChannel, sampleChannel, SAMPLE_HZ } from "./animation";
 import { buildModel } from "./geometry";
 import { resetMolangWarnings } from "./molang";
 import type { BedrockAnimationFile, BedrockGeometryFile } from "./types";
@@ -160,5 +160,28 @@ describe("clips driving the synthetic cube", () => {
     expect(body.position.y).toBeCloseTo(model.restPose.get("body")!.position.y - 1.5);
     expect(body.scale.x).toBeCloseTo(1);
     expect(body.scale.y).toBeCloseTo(0.96 + Math.sin(60 * DEG) * 0.03, 2);
+  });
+});
+
+describe("createClipLibrary", () => {
+  it("knows every name up front but samples a clip only on first use", () => {
+    const prepared: string[] = [];
+    const lib = createClipLibrary(file, (clip) => prepared.push(clip.name));
+    expect(lib.names()).toEqual(Object.keys(file.animations));
+    expect(lib.has("animation.cube.sleep")).toBe(true);
+    expect(lib.built).toBe(0);
+    const sleep = lib.get("animation.cube.sleep");
+    expect(sleep?.clip.tracks.length).toBeGreaterThan(0);
+    expect(lib.built).toBe(1);
+    expect(prepared).toEqual(["animation.cube.sleep"]);
+    expect(lib.get("animation.cube.sleep")).toBe(sleep);
+    expect(lib.built).toBe(1);
+  });
+
+  it("prebuilds a list and skips names the file lacks", () => {
+    const lib = createClipLibrary(file);
+    lib.prebuild(["animation.cube.ground_idle", "animation.cube.nope"]);
+    expect(lib.built).toBe(1);
+    expect(lib.get("animation.cube.nope")).toBeUndefined();
   });
 });

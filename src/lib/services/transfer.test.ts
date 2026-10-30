@@ -1,13 +1,20 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { createSigner, generatePrivateKey, publicKeyFromPrivate, unpack } from "@gotcha/cpkmn";
+import { toEpisodic } from "@/lib/brain/events";
 import { schema } from "@/lib/db";
 import { createTestDb, type TestDb } from "@/lib/db/testing";
 import { HOUR, milestoneBonus } from "@/lib/sim";
 import { care } from "./care";
 import { getParty } from "./party";
+import { deposit, release } from "./pc";
 import { insertPokemon, later, makeTrainer, T0 } from "./testing";
 import { exportPokemon, importPokemon, keyFile, TRADE_TTL, type SigningConfig } from "./transfer";
+
+/** Every event row of a pokemon, oldest first, as the roll-up and the export order them. */
+async function eventRows(pokemonId: string) {
+  return t.db.query.event.findMany({ where: eq(schema.event.pokemonId, pokemonId), orderBy: [asc(schema.event.ts), asc(schema.event.id)] });
+}
 
 let t: TestDb;
 let signed: SigningConfig;
@@ -42,6 +49,11 @@ describe("export and import", () => {
     expect(peek.verification).toBe("verified");
     expect(peek.manifest.assetMode).toBe("reference");
     expect(peek.pokemon.trade).toBeUndefined();
+    // The stored summary is kept; the pet, not rolled up yet, follows the stored memory in episodic.
+    const pending = await eventRows(row.id);
+    expect(pending.length).toBeGreaterThan(0);
+    expect(peek.pokemon.memories.summary).toBe(memories.summary);
+    expect(peek.pokemon.memories.episodic).toEqual([...memories.episodic, ...pending.map(toEpisodic)]);
     // A backup does not change the row.
     expect((await t.db.query.pokemon.findFirst({ where: eq(schema.pokemon.id, row.id) }))?.status).toBe("home");
 
@@ -58,7 +70,7 @@ describe("export and import", () => {
     expect(after.state.needs).toEqual(before.state.needs);
     // Stasis: the file's time in transit did not decay it.
     expect(after.state.lastTickAt).toBe(importedAt);
-    expect(after.memories).toEqual(memories);
+    expect(after.memories).toEqual(peek.pokemon.memories);
     expect(after.stats).toEqual(before.stats);
     expect(after.history.imports).toEqual([{ at: importedAt, install: "test#2026-11", verification: "verified" }]);
     expect(after.status).toBe("home");
@@ -224,5 +236,184 @@ describe("import hardening", () => {
     expect((await importPokemon(t.db, trainer, fileB.bytes, later(T0, HOUR), signed)).bytesAwarded).toBe(0);
     const me = await t.db.query.trainer.findFirst({ where: eq(schema.trainer.id, trainer.id) });
     expect(me?.bytes).toBe(milestoneBonus("first_import"));
+  });
+});
+
+describe("memories in the file", () => {
+  it("a backup taken before the roll-up carries the day's events and a stand-in summary; the event rows are untouched", async () => {
+    const trainer = await makeTrainer(t.db, "eli", "Eli");
+    const row = await insertPokemon(t.db, trainer, { slot: 1, active: true, nickname: "Vee" });
+    await care(t.db, trainer, row.id, { action: "pet" }, later(T0, HOUR));
+    await care(t.db, trainer, row.id, { action: "play" }, later(T0, 2 * HOUR));
+    await care(t.db, trainer, row.id, { action: "groom" }, later(T0, 3 * HOUR));
+    const rowsBefore = await eventRows(row.id);
+    expect(rowsBefore.length).toBeGreaterThanOrEqual(3);
+    expect(rowsBefore.every((e) => !e.rolledUp)).toBe(true);
+
+    const exported = await exportPokemon(t.db, trainer, row.id, "backup", later(T0, 4 * HOUR), signed);
+    const peek = await unpack(exported.bytes, { knownKeys: signed.knownKeys });
+    const expected = rowsBefore.map(toEpisodic);
+    expect(peek.pokemon.memories.episodic).toEqual(expected);
+    const last = expected[expected.length - 1].summary;
+    expect(peek.pokemon.memories.summary).toBe(`Hatched on 2026-11-02. ${expected.length} things have happened so far, most recently ${last}.`);
+
+    // Export reads. It marks nothing rolled up and leaves the row's memories alone.
+    expect(await eventRows(row.id)).toEqual(rowsBefore);
+    const stored = (await t.db.query.pokemon.findFirst({ where: eq(schema.pokemon.id, row.id) }))!;
+    expect(stored.memories).toEqual({ summary: "", episodic: [], relationships: {} });
+
+    // Into an install that has never seen the pokemon, the entries are what it remembers.
+    await t.db.delete(schema.event).where(eq(schema.event.pokemonId, row.id));
+    await t.db.delete(schema.pokemon).where(eq(schema.pokemon.id, row.id));
+    const result = await importPokemon(t.db, trainer, exported.bytes, later(T0, 30 * HOUR), signed);
+    expect(result.outcome).toBe("new");
+    const after = (await t.db.query.pokemon.findFirst({ where: eq(schema.pokemon.id, row.id) }))!;
+    expect(after.memories).toEqual(peek.pokemon.memories);
+  });
+
+  it("a pokemon with nothing in its log exports an empty episodic and a one-line summary", async () => {
+    const trainer = await makeTrainer(t.db, "eli", "Eli");
+    const row = await insertPokemon(t.db, trainer, { slot: 1, active: true });
+    const exported = await exportPokemon(t.db, trainer, row.id, "backup", T0, signed);
+    const peek = await unpack(exported.bytes, { knownKeys: signed.knownKeys });
+    expect(peek.pokemon.memories.episodic).toEqual([]);
+    expect(peek.pokemon.memories.summary).toBe("Hatched on 2026-11-02. Nothing has happened yet.");
+  });
+
+  it("a trade file carries the day's events, not the trade event written after the pack", async () => {
+    const trainer = await makeTrainer(t.db, "eli", "Eli");
+    const row = await insertPokemon(t.db, trainer, { slot: 1, active: true });
+    await care(t.db, trainer, row.id, { action: "pet" }, later(T0, HOUR));
+    const rowsBefore = await eventRows(row.id);
+    const exported = await exportPokemon(t.db, trainer, row.id, "trade", later(T0, 2 * HOUR), signed);
+    const peek = await unpack(exported.bytes, { knownKeys: signed.knownKeys });
+    expect(peek.pokemon.memories.episodic).toEqual(rowsBefore.map(toEpisodic));
+    const rowsAfter = await eventRows(row.id);
+    expect(rowsAfter).toHaveLength(rowsBefore.length + 1);
+    expect(rowsAfter.every((e) => !e.rolledUp)).toBe(true);
+  });
+});
+
+describe("restoring a released pokemon", () => {
+  async function load(id: string) {
+    return (await t.db.query.pokemon.findFirst({ where: eq(schema.pokemon.id, id) }))!;
+  }
+
+  it("release keeps the row but clears slot, box and active", async () => {
+    const trainer = await makeTrainer(t.db, "eli");
+    const a = await insertPokemon(t.db, trainer, { slot: 1, active: true });
+    const b = await insertPokemon(t.db, trainer, { slot: 2 });
+    await deposit(t.db, trainer, b.id);
+    expect(await load(b.id)).toMatchObject({ status: "pc", box: 1, boxSlot: 1 });
+    await release(t.db, trainer, a.id);
+    await release(t.db, trainer, b.id);
+    for (const id of [a.id, b.id]) {
+      expect(await load(id)).toMatchObject({ status: "released", slot: null, box: null, boxSlot: null, active: false, trainerId: trainer.id });
+    }
+  });
+
+  it("the trainer who released a pokemon restores it from its backup: home, first free slot, stasis, milestone, the file wins", async () => {
+    const trainer = await makeTrainer(t.db, "eli", "Eli");
+    const row = await insertPokemon(t.db, trainer, { slot: 1, active: true, nickname: "Vee" });
+    const spare = await insertPokemon(t.db, trainer, { slot: 2 });
+    await care(t.db, trainer, row.id, { action: "pet" }, later(T0, HOUR));
+    const backedUp = await load(row.id);
+    const exported = await exportPokemon(t.db, trainer, row.id, "backup", later(T0, 2 * HOUR), signed);
+    const peek = await unpack(exported.bytes, { knownKeys: signed.knownKeys });
+    const carried = new Set((await eventRows(row.id)).map((e) => e.id));
+
+    // Life goes on after the backup, then the pokemon is let go.
+    await care(t.db, trainer, row.id, { action: "groom" }, later(T0, 3 * HOUR));
+    await release(t.db, trainer, row.id);
+    expect((await getParty(t.db, trainer, later(T0, 3 * HOUR))).activeId).toBe(spare.id);
+
+    const restoredAt = later(T0, 30 * HOUR);
+    const result = await importPokemon(t.db, trainer, exported.bytes, restoredAt, signed);
+    expect(result).toMatchObject({ outcome: "restored", verification: "verified", tradeNonce: null, bytesAwarded: 0 });
+    const after = await load(row.id);
+    expect(after).toMatchObject({ status: "home", slot: 1, box: null, boxSlot: null, active: false, trainerId: trainer.id });
+    expect((await getParty(t.db, trainer, restoredAt)).activeId).toBe(spare.id);
+    // Stasis, and the backup is the source of truth: the groom after it is gone from the state.
+    expect(after.state.lastTickAt).toBe(restoredAt);
+    expect(after.state.needs).toEqual(backedUp.state.needs);
+    expect(after.stats).toEqual(backedUp.stats);
+    expect(after.identity).toEqual(backedUp.identity);
+    expect(after.memories).toEqual(peek.pokemon.memories);
+    expect(after.history.milestones).toEqual([expect.objectContaining({ at: restoredAt, kind: "restored" })]);
+    expect(after.history.imports).toEqual([{ at: restoredAt, install: "test#2026-11", verification: "verified" }]);
+    expect(after.history.trades).toEqual([]);
+    expect(after.history.trainers).toEqual(backedUp.history.trainers);
+
+    // The event rows the file carried are marked rolled up, so the roll-up does not
+    // record them twice; what happened after the backup, and the restore, still wait for it.
+    const rows = await eventRows(row.id);
+    expect(rows.filter((e) => carried.has(e.id)).every((e) => e.rolledUp)).toBe(true);
+    const waiting = rows.filter((e) => !e.rolledUp);
+    expect(waiting.every((e) => !carried.has(e.id))).toBe(true);
+    expect(waiting.map((e) => e.summary)).toContain("Came back to Eli from a backup");
+
+    expect((await care(t.db, trainer, row.id, { action: "pet" }, restoredAt)).refused).toBe(false);
+  });
+
+  it("a restored pokemon lands in the PC when the party is full", async () => {
+    const trainer = await makeTrainer(t.db, "eli");
+    const row = await insertPokemon(t.db, trainer, { slot: 1, active: true });
+    const exported = await exportPokemon(t.db, trainer, row.id, "backup", T0, signed);
+    await release(t.db, trainer, row.id);
+    for (let slot = 1; slot <= 6; slot++) await insertPokemon(t.db, trainer, { slot, active: slot === 1 });
+    const result = await importPokemon(t.db, trainer, exported.bytes, later(T0, HOUR), signed);
+    expect(result.outcome).toBe("restored");
+    expect(result.view).toMatchObject({ status: "pc", box: 1, boxSlot: 1, active: false });
+  });
+
+  it("a stranger cannot restore someone else's released pokemon, signed or not", async () => {
+    const eli = await makeTrainer(t.db, "eli", "Eli");
+    const mae = await makeTrainer(t.db, "mae", "Mae");
+    const row = await insertPokemon(t.db, eli, { slot: 1, active: true });
+    const backup = await exportPokemon(t.db, eli, row.id, "backup", T0, signed);
+    const unsigned = await exportPokemon(t.db, eli, row.id, "backup", T0, { knownKeys: {}, installId: "nokey" });
+    await release(t.db, eli, row.id);
+
+    await expect(importPokemon(t.db, mae, backup.bytes, later(T0, HOUR), signed)).rejects.toMatchObject({ code: "already_present" });
+    await expect(importPokemon(t.db, mae, unsigned.bytes, later(T0, HOUR), signed)).rejects.toMatchObject({ code: "already_present" });
+    expect(await load(row.id)).toMatchObject({ status: "released", trainerId: eli.id });
+    expect((await getParty(t.db, mae, T0)).party).toEqual([]);
+  });
+
+  it("the owner the file names restores with a verified file after someone else released it; an unverified file is refused", async () => {
+    const eli = await makeTrainer(t.db, "eli", "Eli");
+    const mae = await makeTrainer(t.db, "mae", "Mae");
+    const row = await insertPokemon(t.db, eli, { slot: 1, active: true });
+    const verified = await exportPokemon(t.db, eli, row.id, "backup", T0, signed);
+    const unverified = await exportPokemon(t.db, eli, row.id, "backup", T0, stranger);
+
+    // Traded to Mae on this install, then Mae lets it go.
+    const offer = await exportPokemon(t.db, eli, row.id, "trade", later(T0, HOUR), signed);
+    expect((await importPokemon(t.db, mae, offer.bytes, later(T0, 2 * HOUR), signed)).outcome).toBe("received");
+    await release(t.db, mae, row.id);
+
+    await expect(importPokemon(t.db, eli, unverified.bytes, later(T0, 3 * HOUR), signed)).rejects.toMatchObject({ code: "already_present" });
+    const result = await importPokemon(t.db, eli, verified.bytes, later(T0, 3 * HOUR), signed);
+    expect(result.outcome).toBe("restored");
+    const after = await load(row.id);
+    expect(after).toMatchObject({ status: "home", slot: 1, trainerId: eli.id });
+    expect(after.identity.currentTrainer).toEqual({ trainerId: eli.id, name: "Eli" });
+    expect(after.history.trainers.filter((h) => h.to == null).map((h) => h.trainerId)).toEqual([eli.id]);
+    expect((await getParty(t.db, eli, later(T0, 3 * HOUR))).activeId).toBe(row.id);
+    expect((await getParty(t.db, mae, later(T0, 3 * HOUR))).party).toEqual([]);
+  });
+
+  it("the owner can restore from a trade file that already came home; the dead offer stays dead", async () => {
+    const trainer = await makeTrainer(t.db, "eli", "Eli");
+    const row = await insertPokemon(t.db, trainer, { slot: 1, active: true });
+    const offer = await exportPokemon(t.db, trainer, row.id, "trade", T0, signed);
+    expect((await importPokemon(t.db, trainer, offer.bytes, later(T0, HOUR), signed)).outcome).toBe("returned");
+    await release(t.db, trainer, row.id);
+
+    const result = await importPokemon(t.db, trainer, offer.bytes, later(T0, 2 * HOUR), signed);
+    expect(result).toMatchObject({ outcome: "restored", tradeNonce: null });
+    expect(await load(row.id)).toMatchObject({ status: "home", slot: 1, trainerId: trainer.id });
+    expect((await load(row.id)).history.trades).toEqual([]);
+    expect((await t.db.query.trade.findFirst({ where: eq(schema.trade.nonce, offer.trade!.nonce) }))?.state).toBe("cancelled");
   });
 });

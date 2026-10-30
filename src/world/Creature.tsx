@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { getDiorama, type DioramaId } from "./dioramas";
 import { CreatureRig, loadCreature } from "./creature/rig";
 import { useWorldState, useWorldStore } from "./WorldContext";
+import { mark } from "./perf";
 
 interface Ready {
   rig: CreatureRig;
@@ -25,6 +26,7 @@ export function Creature() {
   useEffect(() => {
     if (!bundle) return;
     let cancelled = false;
+    mark("creature:effect");
     loadCreature(bundle, aspects)
       .then((loaded) => {
         if (cancelled) {
@@ -71,7 +73,9 @@ export function Creature() {
 function Rig({ rig, token, dioramaId }: { rig: CreatureRig; token: number; dioramaId: DioramaId }) {
   const store = useWorldStore();
 
+  const framed = useRef(false);
   useEffect(() => {
+    mark("creature:attach");
     store.attachCreature(rig, token, rig.height, rig.restSpot);
     if (process.env.NODE_ENV !== "production") {
       (window as unknown as { __creatureRig?: CreatureRig }).__creatureRig = rig;
@@ -87,6 +91,14 @@ function Rig({ rig, token, dioramaId }: { rig: CreatureRig; token: number; diora
   }, [rig, dioramaId, store, token]);
 
   useFrame((state, delta) => {
+    if (!framed.current) {
+      framed.current = true;
+      mark("creature-first-frame");
+      // The next animation frame starts once this one's render (and any
+      // shader compile it triggers) has finished: the creature is on screen.
+      requestAnimationFrame(() => mark("creature-visible"));
+      store.markShown(token);
+    }
     rig.update(Math.min(delta, 0.1), state.camera.position);
   });
 

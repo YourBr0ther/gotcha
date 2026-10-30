@@ -259,6 +259,54 @@ export function buildClip(name: string, anim: BedrockAnimation): BedrockClip {
   return { name, clip, loop };
 }
 
+/**
+ * The clips of one animation file, built on first use. A species file can
+ * hold sixty clips with hundreds of Molang keyframes; sampling them all
+ * before the creature can appear is wasted work, since the poser plays a
+ * handful at load and the rest (cries, faints, quirks, riding) later if at
+ * all. `prepare` runs once per built clip, for the rig's track filter.
+ */
+export interface ClipLibrary {
+  /** Every clip name in the file, built or not. */
+  names(): string[];
+  keys(): IterableIterator<string>;
+  has(name: string): boolean;
+  /** The clip, sampled now if this is its first use. */
+  get(name: string): BedrockClip | undefined;
+  /** Build these now; names the file lacks are skipped. */
+  prebuild(names: Iterable<string>): void;
+  /** How many clips have been sampled so far. */
+  readonly built: number;
+}
+
+export function createClipLibrary(file: BedrockAnimationFile, prepare?: (clip: BedrockClip) => void): ClipLibrary {
+  const source = file.animations ?? {};
+  const cache = new Map<string, BedrockClip>();
+  const library: ClipLibrary = {
+    names: () => Object.keys(source),
+    keys: () => Object.keys(source)[Symbol.iterator](),
+    has: (name) => name in source,
+    get(name) {
+      const hit = cache.get(name);
+      if (hit) return hit;
+      const anim = source[name];
+      if (!anim) return undefined;
+      const clip = buildClip(name, anim);
+      prepare?.(clip);
+      cache.set(name, clip);
+      return clip;
+    },
+    prebuild(names) {
+      for (const name of names) library.get(name);
+    },
+    get built() {
+      return cache.size;
+    },
+  };
+  return library;
+}
+
+/** Every clip, sampled now. Tests and tools; the rig uses `createClipLibrary`. */
 export function buildClips(file: BedrockAnimationFile): Map<string, BedrockClip> {
   const out = new Map<string, BedrockClip>();
   for (const [name, anim] of Object.entries(file.animations ?? {})) {

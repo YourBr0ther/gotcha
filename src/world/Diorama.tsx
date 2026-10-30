@@ -9,6 +9,7 @@ import { Snow } from "./Particles";
 import { Tufts } from "./Tufts";
 import { Falls, Water } from "./Water";
 import { useWorldState } from "./WorldContext";
+import { timedSync } from "./perf";
 
 /**
  * One diorama: every block merged into a lit mesh and an emissive mesh with
@@ -22,12 +23,14 @@ export function Diorama() {
   const emissive = useMemo(() => createEmissiveBlockMaterial(), []);
   const built = useMemo(
     () =>
-      buildVoxelGeometry(def.blocks, {
-        minX: def.nav.originX,
-        maxX: def.nav.originX + def.nav.width - 1,
-        minZ: def.nav.originZ,
-        maxZ: def.nav.originZ + def.nav.depth - 1,
-      }),
+      timedSync("diorama:build", () =>
+        buildVoxelGeometry(def.blocks, {
+          minX: def.nav.originX,
+          maxX: def.nav.originX + def.nav.width - 1,
+          minZ: def.nav.originZ,
+          maxZ: def.nav.originZ + def.nav.depth - 1,
+        }),
+      ),
     [def],
   );
 

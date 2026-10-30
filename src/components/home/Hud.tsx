@@ -52,9 +52,11 @@ export function MetersCard({ view, deltas }: { view: PokemonView; deltas: Deltas
       {HUD_METERS.map((m) => {
         const value = Math.max(0, Math.min(100, view.needs[m.need]));
         const delta = deltas[m.need];
+        // The happiness face doubles as the mood icon; asleep it closes its eyes.
+        const icon: PixelIconName = m.need === "fun" && view.state.asleep ? "sleeping" : m.icon;
         return (
           <div key={m.need} className="relative flex items-center gap-2">
-            <PixelIcon name={m.icon} size={26} />
+            <PixelIcon name={icon} size={26} />
             <div className="flex flex-1 flex-col gap-1">
               <span className="text-[12px] font-bold leading-none">{m.label}</span>
               <div

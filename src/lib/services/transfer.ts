@@ -1,14 +1,19 @@
 /**
  * Export and import of .cpkmn files, and the trade lock around them.
  *
- * Backup: pack the row, nothing changes. Trade: pack with trade.json, trim
- * the episodic log, mark the row in_transit; it cannot be cared for, made
- * active or exported again until a file with the same pokemonId comes back.
+ * Backup: pack the row, nothing changes. Trade: pack with trade.json, mark
+ * the row in_transit; it cannot be cared for, made active or exported again
+ * until a file with the same pokemonId comes back. Both modes fold the
+ * event rows the nightly roll-up has not reached yet into the file's
+ * episodic memories (see memoriesForExport), so a backup taken mid-day
+ * still carries the day.
  *
  * Import: the file's pokemonId decides. Unknown id: a new arrival. Known
  * and in_transit: the original trainer importing cancels the trade (home);
  * another trainer importing confirms it (a same-install trade). Known and
- * anything else: refused, the pokemon is already here.
+ * released: the trainer who released it, or the owner the file names with a
+ * verified file, restores it from the backup. Known and home or in the PC:
+ * refused, the pokemon is already here.
  */
 
 import { randomBytes } from "node:crypto";
@@ -21,22 +26,25 @@ import {
   trimEpisodic,
   unpack,
   type CpkmnPokemon,
+  type EpisodicEvent,
   type KeyFile,
   type KnownKeys,
+  type Memories,
   type Signer,
   type Trade,
   type Verification,
   type Warning,
 } from "@gotcha/cpkmn";
+import { toEpisodic } from "@/lib/brain/events";
 import { DAY, milestoneBonus } from "@/lib/sim";
-import { schema, type Db } from "@/lib/db";
+import { schema, type Db, type DbOrTx } from "@/lib/db";
 import type { PokemonRow, TrainerRow } from "@/lib/db/schema";
 import { ServiceError } from "./errors";
 import { reconcileActive } from "./party";
 import { assertTouchable, freeBoxSlot, freeSlot, lockAll } from "./pokemon";
 import { assetPackFor } from "./species";
 import { adjustBytes } from "./trainers";
-import { displayName, pokemonView, type PokemonView } from "./views";
+import { displayName, localDay, pokemonView, type PokemonView } from "./views";
 
 export const GENERATOR = { name: "gotcha", version: "0.1.0" };
 export const TRADE_TTL = 7 * DAY;
@@ -96,6 +104,41 @@ export function rowToPokemon(row: PokemonRow): CpkmnPokemon {
   };
 }
 
+/** Event rows the nightly roll-up has not folded into memories yet, oldest first. */
+async function pendingEvents(db: DbOrTx, pokemonId: string) {
+  return db.query.event.findMany({
+    where: and(eq(schema.event.pokemonId, pokemonId), eq(schema.event.rolledUp, false)),
+    orderBy: (e, { asc }) => [asc(e.ts), asc(e.id)],
+  });
+}
+
+function episodicKey(e: EpisodicEvent): string {
+  return `${e.ts}\u0000${e.kind}\u0000${e.summary}`;
+}
+
+/** The stand-in for an empty summary: one paragraph from the rules, no model. */
+export function placeholderSummary(row: Pick<PokemonRow, "identity">, timezone: string, episodic: readonly EpisodicEvent[]): string {
+  const hatched = `Hatched on ${localDay(timezone, row.identity.hatchedAt)}.`;
+  if (episodic.length === 0) return `${hatched} Nothing has happened yet.`;
+  const n = episodic.length;
+  const last = episodic[episodic.length - 1].summary.replace(/\.$/, "");
+  return `${hatched} ${n} ${n === 1 ? "thing has" : "things have"} happened so far, most recently ${last}.`;
+}
+
+/**
+ * What the file carries as memories: the row's rolled-up memories plus the
+ * event rows the roll-up has not reached, as episodic entries, newest last,
+ * cut to the spec's limit. Read only: the rows stay unrolled for the
+ * roll-up and no model is called. An empty summary gets a rules stand-in so
+ * a file exported on the pokemon's first day still says something.
+ */
+export async function memoriesForExport(db: DbOrTx, row: PokemonRow, timezone: string): Promise<Memories> {
+  const pending = await pendingEvents(db, row.id);
+  const episodic = trimEpisodic([...row.memories.episodic, ...pending.map(toEpisodic)]);
+  const summary = row.memories.summary.trim() ? row.memories.summary : placeholderSummary(row, timezone, episodic);
+  return { ...row.memories, summary, episodic };
+}
+
 function filenameFor(row: PokemonRow, mode: ExportMode): string {
   const base = displayName(row)
     .toLowerCase()
@@ -118,7 +161,7 @@ export async function exportPokemon(db: Db, trainer: TrainerRow, pokemonId: stri
   if (!row || row.status === "released") throw new ServiceError("not_found", "pokemon not found");
   assertTouchable(row);
 
-  const pokemon = rowToPokemon(row);
+  const pokemon: CpkmnPokemon = { ...rowToPokemon(row), memories: await memoriesForExport(db, row, trainer.timezone) };
   // Assets are referenced by hash: both installs extract the same Cobblemon pack.
   const assetPack = await assetPackFor(row.identity.species);
   const packOptions = { assetMode: "reference" as const, assetPack, signer: c.signer, generator: GENERATOR, now };
@@ -135,7 +178,7 @@ export async function exportPokemon(db: Db, trainer: TrainerRow, pokemonId: stri
     offeredAt: now,
     expiresAt: new Date(Date.parse(now) + TRADE_TTL).toISOString(),
   };
-  const bytes = await pack({ ...pokemon, memories: { ...pokemon.memories, episodic: trimEpisodic(pokemon.memories.episodic) }, trade }, packOptions);
+  const bytes = await pack({ ...pokemon, trade }, packOptions);
 
   await db.transaction(async (tx) => {
     const rows = await lockAll(tx, trainer.id);
@@ -171,7 +214,12 @@ export async function exportPokemon(db: Db, trainer: TrainerRow, pokemonId: stri
   return { bytes, filename: filenameFor(row, mode), contentType: CPKMN_CONTENT_TYPE, mode, trade };
 }
 
-export type ImportOutcome = "new" | "returned" | "received";
+/**
+ * new: the id was unknown here. returned: the owner brought an in_transit
+ * pokemon home. received: a trade was confirmed to the importer. restored:
+ * a released pokemon came back from its backup.
+ */
+export type ImportOutcome = "new" | "returned" | "received" | "restored";
 
 export interface ImportResult {
   view: PokemonView;
@@ -181,6 +229,37 @@ export interface ImportResult {
   /** The trade this import closed, if any. */
   tradeNonce: string | null;
   bytesAwarded: number;
+}
+
+/**
+ * Who may bring a released pokemon back. The trainer who released it, with
+ * any file: the row is theirs and the file only has to carry the id. The
+ * trainer the file names as current owner, with a verified file: the
+ * signature is what stops a hand-built file from claiming someone else's
+ * release. Anyone else needs a live trade offer matching the file's nonce,
+ * the same bar as an in_transit arrival.
+ */
+async function claimReleased(tx: DbOrTx, existing: PokemonRow, pokemon: CpkmnPokemon, trainer: TrainerRow, verification: Verification, now: string): Promise<{ outcome: ImportOutcome; tradeNonce: string | null }> {
+  if (existing.trainerId === trainer.id) return { outcome: "restored", tradeNonce: null };
+  if (pokemon.identity.currentTrainer.trainerId === trainer.id && verification === "verified") return { outcome: "restored", tradeNonce: null };
+
+  const nonce = pokemon.trade?.nonce;
+  const [offer] = nonce
+    ? await tx
+        .select()
+        .from(schema.trade)
+        .where(and(eq(schema.trade.nonce, nonce), eq(schema.trade.pokemonId, existing.id)))
+        .for("update")
+    : [];
+  const live =
+    offer !== undefined &&
+    verification === "verified" &&
+    offer.state === "offered" &&
+    Date.parse(offer.expiresAt) > Date.parse(now) &&
+    (!offer.toTrainerId || offer.toTrainerId === trainer.id);
+  if (!live) throw new ServiceError("already_present", "that pokemon was released by another trainer here; only they can restore it");
+  await tx.update(schema.trade).set({ state: "confirmed", toTrainerId: trainer.id }).where(eq(schema.trade.nonce, offer.nonce));
+  return { outcome: "received", tradeNonce: offer.nonce };
 }
 
 export async function importPokemon(db: Db, trainer: TrainerRow, bytes: Uint8Array, now = new Date().toISOString(), config?: SigningConfig): Promise<ImportResult> {
@@ -201,7 +280,9 @@ export async function importPokemon(db: Db, trainer: TrainerRow, bytes: Uint8Arr
     let outcome: ImportOutcome;
     let tradeNonce: string | null = null;
 
-    if (existing) {
+    if (existing && existing.status === "released") {
+      ({ outcome, tradeNonce } = await claimReleased(tx, existing, pokemon, trainer, verification, now));
+    } else if (existing) {
       if (existing.status !== "in_transit") throw new ServiceError("already_present", "that pokemon is already here");
       const open = await tx
         .select()
@@ -251,10 +332,11 @@ export async function importPokemon(db: Db, trainer: TrainerRow, bytes: Uint8Arr
       if (!history.trainers.some((t) => t.trainerId === trainer.id && t.to == null)) {
         history.trainers.push({ trainerId: trainer.id, name: trainer.displayName, from: now, to: null });
       }
-      if (pokemon.trade || outcome === "received") {
+      if (outcome !== "restored" && (pokemon.trade || outcome === "received")) {
         history.trades.push({ at: now, fromInstall: outcome === "received" ? c.installId : fromInstall, toInstall: c.installId, verified: verification === "verified" });
       }
     }
+    if (outcome === "restored") history.milestones.push({ at: now, kind: "restored", detail: `From a backup taken ${manifest.exportedAt}` });
     // Stasis: the time in the file does not count.
     const state = { ...pokemon.state, lastTickAt: now };
 
@@ -288,13 +370,32 @@ export async function importPokemon(db: Db, trainer: TrainerRow, bytes: Uint8Arr
     rows.push(row);
     await reconcileActive(tx, rows);
 
+    if (existing) {
+      // The export folded this install's unrolled event rows into the file,
+      // and the file's memories now sit on the row. Those rows would reach
+      // memories a second time at the next roll-up, so the ones the file
+      // carries are marked rolled up. Rows the file does not carry (anything
+      // after the export, the trade event itself) stay for the roll-up.
+      const carried = new Set(pokemon.memories.episodic.map(episodicKey));
+      const dup = (await pendingEvents(tx, id)).filter((e) => carried.has(episodicKey(toEpisodic(e))));
+      if (dup.length > 0) {
+        await tx
+          .update(schema.event)
+          .set({ rolledUp: true })
+          .where(inArray(schema.event.id, dup.map((e) => e.id)));
+      }
+    }
+
     const summary =
       outcome === "returned"
         ? `Came back home to ${trainer.displayName}`
-        : outcome === "received"
-          ? `Traded to ${trainer.displayName}`
-          : `Arrived at ${trainer.displayName}'s from ${fromInstall} (${verification})`;
-    await tx.insert(schema.event).values({ pokemonId: id, ts: now, kind: "trade", summary, importance: 4, trainerId: trainer.id, emotion: outcome === "returned" ? "relieved" : "curious" });
+        : outcome === "restored"
+          ? `Came back to ${trainer.displayName} from a backup`
+          : outcome === "received"
+            ? `Traded to ${trainer.displayName}`
+            : `Arrived at ${trainer.displayName}'s from ${fromInstall} (${verification})`;
+    const relieved = outcome === "returned" || outcome === "restored";
+    await tx.insert(schema.event).values({ pokemonId: id, ts: now, kind: outcome === "restored" ? "milestone" : "trade", summary, importance: 4, trainerId: trainer.id, emotion: relieved ? "relieved" : "curious" });
 
     let bytesAwarded = 0;
     // The welcome bonus is once per trainer, and only for a file signed by a

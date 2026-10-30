@@ -9,6 +9,10 @@
  * head look, wing flap) are added each frame on top, and quirks (blink)
  * fire as one-shot clips over everything.
  *
+ * Sleep without a sleep clip (Eevee and many others) is procedural: the
+ * whole model eases onto its side over a second, the idle clip slows to a
+ * breath, and the blink quirk stays off until the creature gets up.
+ *
  * Movement follows the species behaviour. A walker paths over the land
  * grid; a swimmer adds the water grid and sinks to a float height inside a
  * water volume; a water-only species is redirected to water spots; a flier
@@ -17,7 +21,7 @@
 
 import * as THREE from "three";
 import type { Activity, EmoteKind, PokemonBundle } from "../api";
-import { applyLoop, buildClips, type BedrockClip } from "../bedrock/animation";
+import { applyLoop, type ClipLibrary, createClipLibrary } from "../bedrock/animation";
 import { buildModel, type LoadedModel } from "../bedrock/geometry";
 import { mergeBoneCubes } from "../bedrock/merge";
 import { type PoserMap, type PoseStack, readPoser, resolveActivity } from "../bedrock/poser";
@@ -28,6 +32,7 @@ import type { CreatureController } from "../store";
 import { emoteTexture } from "./emotes";
 import { ProceduralStack } from "./layers";
 import { type Locomotion, readLocomotion, resolveSpot, spotMedium } from "./locomotion";
+import { measure, now, timed, timedSync } from "../perf";
 
 const WALK_SPEED = 1.7; // blocks per second at baseScale 1
 const SWIM_FACTOR = 0.8;
@@ -35,6 +40,14 @@ const FLY_FACTOR = 1.3;
 const CLIMB_SPEED = 1.6; // blocks per second up or down
 const TURN_SPEED = 9; // radians per second
 const FADE = 0.25;
+/** Seconds the procedural sleep takes to lie down, and to get up again. */
+const SLEEP_EASE = 1.0;
+/** How far a sleeper without a sleep clip rolls onto its side. */
+const SLEEP_ROLL = THREE.MathUtils.degToRad(82);
+/** Idle plays this slow while lying down, so the breathing reads as sleep. */
+const SLEEP_TIME_SCALE = 0.3;
+/** Clips the poser plays at load; the rest are sampled on first use. */
+const PREBUILT_ACTIVITIES: Activity[] = ["idle", "walk", "sleep"];
 
 /**
  * Starts (or re-fades) a base pose clip at full weight.
@@ -59,7 +72,7 @@ const ARRIVE_EPSILON = 0.05;
 
 export interface LoadedCreature {
   model: LoadedModel;
-  clips: Map<string, BedrockClip>;
+  clips: ClipLibrary;
   poser: PoserMap;
   texture: THREE.Texture | null;
   emissive: THREE.Texture | null;
@@ -70,33 +83,45 @@ export interface LoadedCreature {
   dispose(): void;
 }
 
-export async function loadCreature(bundle: PokemonBundle, aspects: string[]): Promise<LoadedCreature> {
+/**
+ * Build a creature from its bundle. `label` prefixes the performance
+ * measures (`creature` for the active pokemon, `ambient` for the dressing).
+ */
+export async function loadCreature(bundle: PokemonBundle, aspects: string[], label = "creature"): Promise<LoadedCreature> {
   const shiny = aspects.includes("shiny") && bundle.textures.shiny;
   const url = shiny ? bundle.textures.shiny! : bundle.textures.base;
   let texture: THREE.Texture | null = null;
   let emissive: THREE.Texture | null = null;
+  const t0 = now();
   try {
-    texture = await loadBedrockTexture(url);
+    texture = await timed(`${label}:texture`, () => loadBedrockTexture(url));
   } catch (err) {
     console.warn(`[world] texture failed for ${bundle.species}, drawing untextured`, err);
   }
   if (bundle.textures.emissive) {
     try {
-      emissive = await loadEmissiveTexture(bundle.textures.emissive);
+      emissive = await timed(`${label}:emissive`, () => loadEmissiveTexture(bundle.textures.emissive!));
     } catch (err) {
       console.warn(`[world] emissive texture failed for ${bundle.species}, drawing without glow`, err);
     }
   }
   const material = createBedrockMaterial(texture, emissive);
-  const model = buildModel(bundle.geometry, material);
-  const meshes = mergeBoneCubes(model);
-  const clips = buildClips(bundle.animations);
+  const model = timedSync(`${label}:geometry`, () => buildModel(bundle.geometry, material));
+  const meshes = timedSync(`${label}:merge`, () => mergeBoneCubes(model));
   // Riding clips animate seat locators the geometry does not carry; the
-  // mixer would warn on every such track, so drop them up front.
-  for (const clip of clips.values()) {
+  // mixer would warn on every such track, so drop them as each clip is built.
+  const clips = createClipLibrary(bundle.animations, (clip) => {
     clip.clip.tracks = clip.clip.tracks.filter((t) => model.bones.has(t.name.slice(0, t.name.indexOf("."))));
-  }
-  const poser = readPoser(bundle.poser, clips.keys());
+  });
+  const poser = timedSync(`${label}:poser`, () => readPoser(bundle.poser, clips.names()));
+  // Sample only what plays at load: the resting, walking and sleeping
+  // stacks and the quirks. Cries, faints and the swim or fly stacks of a
+  // species that starts on land wait for their first use.
+  timedSync(`${label}:clips`, () => {
+    for (const activity of PREBUILT_ACTIVITIES) clips.prebuild(resolveActivity(poser, activity)?.clips ?? []);
+    clips.prebuild(poser.quirks);
+  });
+  measure(`${label}:load`, t0);
   return {
     model,
     clips,
@@ -152,6 +177,19 @@ export class CreatureRig implements CreatureController {
   readonly height: number;
   readonly locomotion: Locomotion;
 
+  /**
+   * Sits between the group and the model root, at the body's centre, so
+   * the procedural sleep can roll the whole model onto its side.
+   */
+  private readonly body = new THREE.Group();
+  /** Width of the model in blocks after baseScale; a sleeper rests on half of it. */
+  private readonly width: number;
+  /** 0 standing, 1 lying on its side; eased toward `sleepTarget` every frame. */
+  private sleepT = 0;
+  private sleepTarget = 0;
+  /** Speed of the base clips: 1, or slower while lying down. */
+  private baseTimeScale = 1;
+
   private readonly actions = new Map<string, THREE.AnimationAction>();
   private baseClips: string[] = [];
   private procedural: ProceduralStack;
@@ -188,8 +226,14 @@ export class CreatureRig implements CreatureController {
     const scale = loaded.bundle.baseScale ?? 1;
     this.scale = scale;
     loaded.model.root.scale.multiplyScalar(scale);
-    this.group.add(loaded.model.root);
     this.height = Math.max(0.3, loaded.model.bounds.max.y * scale);
+    this.width = Math.max(0.2, (loaded.model.bounds.max.x - loaded.model.bounds.min.x) * scale);
+    // The root hangs under the pivot by half the height, and the pivot sits
+    // that high, so nothing moves until the sleep roll lowers the pivot.
+    loaded.model.root.position.y = -this.height / 2;
+    this.body.position.y = this.height / 2;
+    this.body.add(loaded.model.root);
+    this.group.add(this.body);
     this.mixer = new THREE.AnimationMixer(loaded.model.root);
     this.bones = new Map(loaded.model.bones);
     this.procedural = new ProceduralStack(this.bones, loaded.model.root, []);
@@ -234,6 +278,7 @@ export class CreatureRig implements CreatureController {
 
   setDiorama(diorama: DioramaDef): void {
     this.cancelMove();
+    this.wake();
     this.diorama = diorama;
     this.grid = travelGrid(diorama, this.locomotion);
     this.teleport(this.spawnSpot(diorama));
@@ -327,6 +372,7 @@ export class CreatureRig implements CreatureController {
       if (this.baseClips.includes(name) && action.isRunning() && action.getEffectiveWeight() >= 0.999) continue;
       startBaseAction(action, immediate);
     }
+    for (const name of next) this.actions.get(name)?.setEffectiveTimeScale(this.baseTimeScale);
     this.baseClips = [...next];
     this.procedural.restore();
     this.procedural = new ProceduralStack(this.bones, this.loaded.model.root, stack.procedural);
@@ -370,8 +416,12 @@ export class CreatureRig implements CreatureController {
       this.landed = this.locomotion.flies;
       this.medium = this.mediumAt(this.group.position.x, this.group.position.z);
       this.setActivity("sleep");
+      // No sleep clip: the pose above is the idle, so lie the whole model
+      // down instead and slow the idle to a breath.
+      if (!this.loaded.poser.poses.sleep) this.lieDown();
       return;
     }
+    this.wake();
     if (activity === "idle") {
       this.landed = false;
       this.medium = this.mediumAt(this.group.position.x, this.group.position.z);
@@ -379,6 +429,42 @@ export class CreatureRig implements CreatureController {
       return;
     }
     this.setActivity(activity);
+  }
+
+  /** True while the procedural sleep (no sleep clip) is lying the model down or holding it there. */
+  get lyingDown(): boolean {
+    return this.sleepTarget === 1;
+  }
+
+  /** How far into the procedural sleep roll the model is, 0 standing to 1 on its side. */
+  get sleepProgress(): number {
+    return this.sleepT;
+  }
+
+  private lieDown(): void {
+    this.sleepTarget = 1;
+    this.setBaseTimeScale(SLEEP_TIME_SCALE);
+  }
+
+  /** Undo the procedural sleep; a no-op when the model is standing. */
+  private wake(): void {
+    if (this.sleepTarget === 0 && this.baseTimeScale === 1) return;
+    this.sleepTarget = 0;
+    this.setBaseTimeScale(1);
+  }
+
+  private setBaseTimeScale(scale: number): void {
+    this.baseTimeScale = scale;
+    for (const name of this.baseClips) this.actions.get(name)?.setEffectiveTimeScale(scale);
+  }
+
+  /** Roll the body by `sleepT`: around its forward axis, dropping so it rests on its side. */
+  private applySleepPose(): void {
+    const t = THREE.MathUtils.smoothstep(this.sleepT, 0, 1);
+    const half = this.height / 2;
+    const rest = Math.min(this.width / 2, half);
+    this.body.rotation.z = SLEEP_ROLL * t;
+    this.body.position.y = THREE.MathUtils.lerp(half, rest, t);
   }
 
   cry(): void {
@@ -409,6 +495,7 @@ export class CreatureRig implements CreatureController {
     }
     const target = this.diorama.spots[name];
     this.cancelMove();
+    this.wake();
     this.orbit = null;
     this.arriveFacing = target.facing;
 
@@ -447,6 +534,7 @@ export class CreatureRig implements CreatureController {
   /** Scripted circling for ambient fliers; cleared by any move or play. */
   setOrbit(orbit: Orbit | null): void {
     this.cancelMove();
+    this.wake();
     this.orbit = orbit;
     if (orbit) {
       this.landed = false;
@@ -555,6 +643,12 @@ export class CreatureRig implements CreatureController {
     const maxTurn = TURN_SPEED * dt;
     this.yaw += Math.abs(turn) <= maxTurn ? turn : Math.sign(turn) * maxTurn;
     this.group.rotation.y = this.yaw;
+
+    if (this.sleepT !== this.sleepTarget) {
+      const step = dt / SLEEP_EASE;
+      this.sleepT = this.sleepTarget > this.sleepT ? Math.min(this.sleepTarget, this.sleepT + step) : Math.max(this.sleepTarget, this.sleepT - step);
+      this.applySleepPose();
+    }
 
     if (this.activity !== "sleep" && this.activity !== "faint" && this.loaded.poser.quirks.length) {
       this.blinkIn -= dt;

@@ -32,10 +32,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
+      {/* Top of the viewport, under the status bar. Nothing interactive lives there on any screen, so a toast never sits on a button; the side padding keeps a header's back and aside buttons clear on a phone. */}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 z-[90] flex flex-col items-center gap-2 px-4"
-        style={{ bottom: "calc(var(--spacing-tab) + var(--spacing-safe-bottom) + 12px)" }}
+        className="pointer-events-none fixed inset-x-0 z-[90] flex flex-col items-center gap-2 px-14 md:left-56 md:px-4"
+        style={{ top: "calc(var(--spacing-safe-top) + 10px)" }}
       >
         {toasts.map((t) => (
           <div

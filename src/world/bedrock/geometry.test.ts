@@ -8,6 +8,7 @@ import {
   bedrockPosition,
   boxUvRects,
   buildModel,
+  isSideSheet,
   perFaceUvRects,
 } from "./geometry";
 
@@ -179,5 +180,46 @@ describe("buildModel on the synthetic cube", () => {
     expect(model.bounds.min.y).toBeCloseTo(0, 1);
     expect(model.bounds.max.y).toBeLessThan(1.2);
     expect(model.bounds.max.y).toBeGreaterThan(0.6);
+  });
+});
+
+describe("side sheets", () => {
+  function sheetModel(size: [number, number, number]) {
+    const geo = {
+      format_version: "1.12.0",
+      "minecraft:geometry": [
+        {
+          description: { identifier: "geometry.sheet", texture_width: 64, texture_height: 64 },
+          bones: [{ name: "tail", pivot: [0, 0, 0], cubes: [{ origin: [0, 3, 5], size, uv: [0, 0] }] }],
+        },
+      ],
+    } as unknown as BedrockGeometryFile;
+    const model = buildModel(geo, new THREE.MeshBasicMaterial());
+    const mesh = model.bones.get("tail")!.children[0] as THREE.Mesh;
+    return mesh.geometry.getAttribute("normal");
+  }
+
+  it("recognises a cube with no thickness along X", () => {
+    expect(isSideSheet([0, 5, 6])).toBe(true);
+    expect(isSideSheet([4, 5, 0])).toBe(false);
+    expect(isSideSheet([3, 0, 6])).toBe(false);
+    expect(isSideSheet([0, 0, 0])).toBe(false);
+  });
+
+  it("lights a side sheet from the front on both of its faces", () => {
+    const normal = sheetModel([0, 5, 6]);
+    for (let i = 0; i < normal.count; i++) {
+      expect(normal.getX(i)).toBe(0);
+      expect(normal.getY(i)).toBe(0);
+      expect(normal.getZ(i)).toBe(-1);
+    }
+  });
+
+  it("leaves a box's east and west normals alone", () => {
+    const normal = sheetModel([2, 5, 6]);
+    const east = BOX_FACE_ORDER.indexOf("east") * 4;
+    const west = BOX_FACE_ORDER.indexOf("west") * 4;
+    expect(normal.getX(east)).toBe(1);
+    expect(normal.getX(west)).toBe(-1);
   });
 });

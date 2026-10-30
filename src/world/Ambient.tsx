@@ -19,6 +19,9 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** A world with no pokemon on the way still gets its dressing, after this long. */
+const NO_CREATURE_GRACE_MS = 1500;
+
 /** A walker ambles between the two ambient spots, pausing at each. */
 async function amble(rig: CreatureRig, alive: { current: boolean }): Promise<void> {
   const spots = ["ambient_1", "ambient_2"];
@@ -49,30 +52,35 @@ function circle(rig: CreatureRig, def: DioramaDef): void {
  * Up to two wild pokemon as set dressing: a flier circling the air volume
  * and a walker (or swimmer) ambling between the ambient spots. Idle clips
  * only, no needs, no brain. Loaded through the same bundle loader as the
- * active pokemon.
+ * active pokemon, but only once that pokemon has drawn its first frame, so
+ * the dressing never competes with it for bandwidth or the main thread.
  */
 export function Ambient() {
-  const { diorama, ambient, bundle } = useWorldState();
+  const { diorama, ambient, bundle, loadToken, shownToken } = useWorldState();
   const [dressed, setDressed] = useState<{ id: DioramaId; rigs: Dressed[] } | null>(null);
   const pendingDispose = useRef(new Map<CreatureRig, number>());
   const active = bundle?.species;
+  const creatureShown = !bundle || shownToken === loadToken;
 
   useEffect(() => {
     let cancelled = false;
     const def = getDiorama(diorama);
+    if (ambient && !creatureShown) return;
     (async () => {
       if (!ambient) {
         await Promise.resolve();
         if (!cancelled) setDressed(null);
         return;
       }
+      if (!active) await wait(NO_CREATURE_GRACE_MS);
+      if (cancelled) return;
       const candidates = await fetchAmbientCandidates(diorama);
       const picks = await pickLoadableAmbient(candidates, diorama, active ? [active] : [], probeAmbient);
       if (cancelled) return;
       const loaded = await Promise.all(
         picks.map(async (pick) => {
-          const b = await loadSpeciesBundle(pick.species);
-          return { pick, creature: await loadCreature(b, []) };
+          const b = await loadSpeciesBundle(pick.species, [], { label: "ambient:bundle" });
+          return { pick, creature: await loadCreature(b, [], "ambient") };
         }),
       );
       if (cancelled) {
@@ -86,7 +94,7 @@ export function Ambient() {
     return () => {
       cancelled = true;
     };
-  }, [diorama, ambient, active]);
+  }, [diorama, ambient, active, creatureShown]);
 
   // Dispose rigs a tick after they are replaced so StrictMode's rerun cancels it.
   useEffect(() => {

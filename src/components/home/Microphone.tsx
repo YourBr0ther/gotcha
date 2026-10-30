@@ -9,13 +9,18 @@ export interface TalkReply {
   line: string;
   emote?: string;
   cry?: boolean;
+  /** Which brain answered: the model or the rules fallback. */
+  source?: "model" | "rules";
+  /** Model id when the server names it; absent today. */
+  model?: string;
 }
 
 interface Props {
   pokemonId: string;
   onReply: (reply: TalkReply) => void;
-  /** Where the button rests before the trainer drags it; CSS pixels from the right and bottom edges. */
-  home: { right: number; bottom: number };
+  /** Where the button rests before the trainer drags it; CSS pixels from the right and bottom edges. Without it the button sits in normal flow. */
+  home?: { right: number; bottom: number };
+  className?: string;
 }
 
 type SpeechRecognitionCtor = new () => {
@@ -41,7 +46,7 @@ function speechRecognition(): SpeechRecognitionCtor | null {
  * text goes to /api/pokemon/[id]/talk. Either route missing degrades to a
  * toast. Drag it anywhere; a tap without movement is a press.
  */
-export function Microphone({ pokemonId, onReply, home }: Props) {
+export function Microphone({ pokemonId, onReply, home, className = "" }: Props) {
   const { toast } = useToast();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [recording, setRecording] = useState(false);
@@ -188,7 +193,9 @@ export function Microphone({ pokemonId, onReply, home }: Props) {
 
   const style: React.CSSProperties = pos
     ? { position: "fixed", left: pos.x, top: pos.y }
-    : { position: "absolute", right: home.right, bottom: home.bottom };
+    : home
+      ? { position: "absolute", right: home.right, bottom: home.bottom }
+      : {};
 
   return (
     <button
@@ -202,7 +209,7 @@ export function Microphone({ pokemonId, onReply, home }: Props) {
       onPointerCancel={() => {
         drag.current = null;
       }}
-      className={`card flex h-14 w-14 touch-none items-center justify-center rounded-full ${recording ? "recording bg-need-health/60" : "hover:bg-white/10"} ${busy ? "opacity-70" : ""}`}
+      className={`card flex h-14 w-14 shrink-0 touch-none items-center justify-center rounded-full ${recording ? "recording bg-need-health/60" : "hover:bg-white/10"} ${busy ? "opacity-70" : ""} ${className}`}
       style={{ ...style, zIndex: 30 }}
     >
       <PixelIcon name="mic" size={30} />

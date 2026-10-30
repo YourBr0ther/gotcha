@@ -33,6 +33,16 @@
  * `down`, whose author-facing orientation has north at the top and so flips
  * in V to match BoxGeometry. `inflate` grows the box on every side and leaves
  * UV alone.
+ *
+ * A cube with a zero X size is a sheet seen edge-on from the front: a tail,
+ * a fin, a head leaf. Its two coincident faces point east and west, so one
+ * of them always faces away from the sun and the fill, and whichever the
+ * camera sees is lit by the hemisphere alone (Pikachu's tail drew olive
+ * next to a yellow body). Minecraft shades every face by a fixed direction
+ * and never shows this. Here such a sheet takes the model's front normal
+ * on both faces, so it lights like the face of the creature it belongs to.
+ * Sheets flat in Y or Z already carry the normals of a top or a front and
+ * are left alone.
  */
 
 import * as THREE from "three";
@@ -170,6 +180,21 @@ function isPerFace(uv: BedrockCube["uv"]): uv is BedrockPerFaceUv {
   return !!uv && !Array.isArray(uv);
 }
 
+/** The model's front, the direction a north face points. */
+const FRONT_NORMAL: Vec3 = [0, 0, -1];
+
+/** Point every vertex normal of a sheet the same way. */
+export function setSheetNormals(geometry: THREE.BufferGeometry, normal: Vec3): void {
+  const attr = geometry.getAttribute("normal") as THREE.BufferAttribute;
+  for (let i = 0; i < attr.count; i++) attr.setXYZ(i, normal[0], normal[1], normal[2]);
+  attr.needsUpdate = true;
+}
+
+/** A cube with no thickness along X: its visible faces are east and west. */
+export function isSideSheet(size: Vec3): boolean {
+  return size[0] === 0 && (size[1] > 0 || size[2] > 0);
+}
+
 function buildCube(
   cube: BedrockCube,
   bone: BedrockBone,
@@ -194,6 +219,7 @@ function buildCube(
     const [u, v] = cube.uv ?? [0, 0];
     applyUvs(geometry, boxUvRects(u, v, size[0], size[1], size[2], mirror), texW, texH);
   }
+  if (isSideSheet(size)) setSheetNormals(geometry, FRONT_NORMAL);
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true;

@@ -173,7 +173,8 @@ export async function rollupDay(input: RollupInput, deps: RollupDeps = {}): Prom
     pokemonId: row.id,
     ts: now,
     kind: "other",
-    summary: `Journal, ${day}: ${summary}`.slice(0, 280),
+    // The rules summary already opens with the date; do not print it twice.
+    summary: `Journal, ${day}: ${summary.startsWith(`${day}: `) ? summary.slice(day.length + 2) : summary}`.slice(0, 280),
     importance: 2,
     trainerId: null,
     emotion: "reflective",

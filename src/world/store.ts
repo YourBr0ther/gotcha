@@ -30,6 +30,8 @@ export class WorldStore {
     activity: "idle",
     timeOfDay: localHours(),
     loadToken: 0,
+    attachedToken: 0,
+    shownToken: 0,
     focusHeight: 0.9,
     focus: null,
     fading: false,
@@ -130,7 +132,10 @@ export class WorldStore {
   attachCreature(controller: CreatureController, loadToken: number, height: number, focus: { x: number; y: number; z: number } | null = null): void {
     this.creature = controller;
     const f = this.state.focus;
-    if (height !== this.state.focusHeight || focus?.x !== f?.x || focus?.y !== f?.y || focus?.z !== f?.z) this.set({ focusHeight: height, focus });
+    const attachedToken = Math.max(this.state.attachedToken, loadToken);
+    if (attachedToken !== this.state.attachedToken || height !== this.state.focusHeight || focus?.x !== f?.x || focus?.y !== f?.y || focus?.z !== f?.z) {
+      this.set({ attachedToken, focusHeight: height, focus });
+    }
     const waiter = this.loadWaiters.get(loadToken);
     if (waiter) {
       this.loadWaiters.delete(loadToken);
@@ -139,6 +144,11 @@ export class WorldStore {
     const queued = this.creatureWaiters;
     this.creatureWaiters = [];
     for (const fn of queued) fn(controller);
+  }
+
+  /** Called by the creature on its first rendered frame. */
+  markShown(loadToken: number): void {
+    if (loadToken === this.state.loadToken && loadToken !== this.state.shownToken) this.set({ shownToken: loadToken });
   }
 
   failLoad(loadToken: number, error: Error): void {

@@ -186,7 +186,7 @@ textarea {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(-8px);
   }
   to {
     opacity: 1;
@@ -223,6 +223,11 @@ textarea {
 
 .recording {
   animation: pulse-ring 1s ease-out infinite;
+}
+
+/* On Home the world's stats overlay takes the strip the tab bar leaves empty, above the home indicator. */
+.home-world [data-testid="world-stats"] {
+  bottom: calc(var(--spacing-safe-bottom) + 8px);
 }
 
 /* Scrollbars inside sheets stay subtle. */

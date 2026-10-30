@@ -2,14 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Activity, EmoteKind, WorldHandle, DioramaId } from "@/world/api";
 import { isDioramaId, localHours } from "@/world/api";
 import { loadSpeciesBundle } from "@/world/bundle";
 import type { NeedName } from "@gotcha/cpkmn";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
 import { useToast } from "@/components/ui/Toast";
-import { Button } from "@/components/ui/primitives";
+import { Button, EmptyState } from "@/components/ui/primitives";
 import { errorText, get, post, shareOrDownload, type BagEntry, type CareOutcome, type Me, type PartyView, type RichView, type StoreItem, type StoreResponse, type Weather } from "@/components/lib/api";
 import type { JournalView } from "@/lib/services/journal";
 import type { DiscardResult } from "@/lib/services/bag";
@@ -18,6 +18,7 @@ import { readLowPower } from "@/components/lib/prefs";
 import { ActionButton, ClockCard, MetersCard, NameCard, SquareButton, type Deltas } from "./Hud";
 import { CareSheet, type CareKind, type CareRequest } from "./CareSheet";
 import { DialogueBox } from "./DialogueBox";
+import { MenuButton } from "./MenuButton";
 import { Microphone, type TalkReply } from "./Microphone";
 import { StarterPicker } from "./StarterPicker";
 
@@ -60,6 +61,25 @@ function toDiorama(value: string | undefined): DioramaId {
   return value && isDioramaId(value) ? value : "meadow";
 }
 
+/**
+ * The footer tag on the dialogue box. The model's short name ("GLM" for
+ * zai-org/glm-5.2) when the model answered, "rules" for the fallback. The
+ * talk route does not name its model yet, so GLM is the default.
+ */
+function brainTag(source: string | undefined, model?: string): string {
+  if (source !== "model") return "rules";
+  const name = (model ?? "glm").split("/").pop() ?? "glm";
+  return name.split(/[-_.]/)[0].toUpperCase();
+}
+
+interface Dialogue {
+  text: string;
+  tag: string;
+}
+
+const subscribeNothing = () => () => undefined;
+const readDebugFlag = () => new URLSearchParams(window.location.search).get("debug") === "1";
+
 type Phase = "loading" | "starter" | "world" | "error";
 
 export function HomeScreen() {
@@ -73,9 +93,12 @@ export function HomeScreen() {
   const [sheet, setSheet] = useState<CareKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [deltas, setDeltas] = useState<Deltas>({});
-  const [dialogue, setDialogue] = useState<string | null>(null);
+  const [dialogue, setDialogue] = useState<Dialogue | null>(null);
   const [photo, setPhoto] = useState(false);
   const [modelReady, setModelReady] = useState(false);
+  const [starterOpen, setStarterOpen] = useState(true);
+  // `?debug=1` shows the world's stats overlay. Read from the location, not useSearchParams, so the page needs no Suspense boundary.
+  const debug = useSyncExternalStore(subscribeNothing, readDebugFlag, () => false);
   const handleRef = useRef<WorldHandle | null>(null);
   const handleWaiters = useRef<Array<(h: WorldHandle) => void>>([]);
   const worldBox = useRef<HTMLDivElement>(null);
@@ -179,11 +202,19 @@ export function HomeScreen() {
     };
   }, [phase, dioramaId, withHandle]);
 
-  // Sleep state follows the view.
+  // Sleep state follows the view. A "Zz" emote marks the moment it dozes off,
+  // once per nap, including a pokemon that arrives already asleep.
   const asleep = view?.state.asleep ?? false;
+  const wasAsleep = useRef(false);
   useEffect(() => {
-    if (!modelReady) return;
-    handleRef.current?.play(asleep ? "sleep" : "idle");
+    if (!modelReady) {
+      wasAsleep.current = false;
+      return;
+    }
+    const handle = handleRef.current;
+    handle?.play(asleep ? "sleep" : "idle");
+    if (asleep && !wasAsleep.current) handle?.emote("sleepy");
+    wasAsleep.current = asleep;
   }, [asleep, modelReady]);
 
   // Live state and brain events.
@@ -200,7 +231,7 @@ export function HomeScreen() {
       }
     });
     source.addEventListener("brain", (e) => {
-      let msg: { activity?: string; emote?: string; dialogue?: string; cry?: boolean };
+      let msg: { activity?: string; emote?: string; dialogue?: string; cry?: boolean; source?: string; model?: string };
       try {
         msg = JSON.parse((e as MessageEvent).data);
       } catch {
@@ -212,7 +243,7 @@ export function HomeScreen() {
       const emote = toEmote(msg.emote);
       if (handle && emote) handle.emote(emote);
       if (handle && msg.cry) handle.cry();
-      if (msg.dialogue) setDialogue(msg.dialogue);
+      if (msg.dialogue) setDialogue({ text: msg.dialogue, tag: brainTag(msg.source, msg.model) });
     });
     return () => source.close();
   }, [pokemonId]);
@@ -264,8 +295,9 @@ export function HomeScreen() {
       if (outcome.mistake) {
         toast("That was a care mistake", "error");
         handle?.emote("sad");
-      } else {
-        const emote: EmoteKind = req.action === "feed" ? "happy" : req.action === "play" ? "music" : req.action === "pet" ? "love" : req.action === "rest" ? "sleepy" : req.action === "discipline" ? "angry" : "happy";
+      } else if (req.action !== "rest") {
+        // Rest gets its "Zz" from the sleep effect when the view flips to asleep.
+        const emote: EmoteKind = req.action === "feed" ? "happy" : req.action === "play" ? "music" : req.action === "pet" ? "love" : req.action === "discipline" ? "angry" : "happy";
         handle?.emote(emote);
       }
       if (req.action === "play" && handle) handle.cry();
@@ -314,7 +346,7 @@ export function HomeScreen() {
     const emote = toEmote(reply.emote);
     if (handle && emote) handle.emote(emote);
     if (handle && reply.cry) handle.cry();
-    setDialogue(reply.line);
+    setDialogue({ text: reply.line, tag: brainTag(reply.source, reply.model) });
   }, []);
 
   const snap = useCallback(async () => {
@@ -358,15 +390,19 @@ export function HomeScreen() {
   );
 
   const hudHidden = photo || phase !== "world";
-  const actionBottom = "calc(var(--spacing-tab) + var(--spacing-safe-bottom) + 12px)";
+  // Home has no tab bar, so the action row sits right above the home
+  // indicator. With the debug overlay on, the row lifts by a tab height
+  // and the overlay takes that strip.
+  const safeBottom = "calc(var(--spacing-safe-bottom) + 12px)";
+  const actionBottom = debug ? "calc(var(--spacing-tab) + var(--spacing-safe-bottom) + 12px)" : safeBottom;
   const dioramaLabel = useMemo(() => (view ? toDiorama(view.state.location.diorama) : "meadow"), [view]);
 
   return (
-    <div ref={worldBox} className="fixed inset-0 md:left-56" style={{ bottom: 0 }}>
+    <div ref={worldBox} className="home-world fixed inset-0 md:left-56" style={{ bottom: 0 }}>
       {phase === "error" ? (
         <WorldPlaceholder text="The meadow is out of reach" />
       ) : (
-        <World onReady={onReady}>
+        <World onReady={onReady} debug={debug}>
           {/* Tap zone over where the pokemon stands; petting needs no hit test on the model. */}
           {phase === "world" && !photo ? (
             <button
@@ -384,16 +420,39 @@ export function HomeScreen() {
       {phase === "loading" ? <WorldPlaceholder text="Finding your trainer card" /> : null}
 
       {phase === "starter" ? (
-        <StarterPicker
-          open
-          onPicked={(picked) => {
-            setView(picked as RichView);
-            setPhase("world");
-            get<Me>("/api/me")
-              .then(setMe)
-              .catch(() => undefined);
-          }}
-        />
+        <>
+          <StarterPicker
+            open={starterOpen}
+            onClose={() => setStarterOpen(false)}
+            onPicked={(picked) => {
+              setView(picked as RichView);
+              setPhase("world");
+              get<Me>("/api/me")
+                .then(setMe)
+                .catch(() => undefined);
+            }}
+          />
+          {!starterOpen ? (
+            <>
+              <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center px-4">
+                <div className="w-full max-w-sm">
+                  <EmptyState
+                    title="No pokemon yet"
+                    text="The meadow is waiting for a friend. Pick one whenever you are ready."
+                    action={
+                      <Button variant="primary" onClick={() => setStarterOpen(true)} className="h-12 px-5">
+                        Choose a starter
+                      </Button>
+                    }
+                  />
+                </div>
+              </div>
+              <div className="absolute right-3" style={{ bottom: safeBottom }}>
+                <MenuButton className="md:hidden" />
+              </div>
+            </>
+          ) : null}
+        </>
       ) : null}
 
       {!hudHidden && view ? (
@@ -412,7 +471,12 @@ export function HomeScreen() {
 
           <div className="pointer-events-none absolute inset-x-0 flex flex-col items-center gap-3 px-3" style={{ bottom: actionBottom }}>
             <div className="pointer-events-auto w-full max-w-lg">
-              <DialogueBox speaker={view.name} text={dialogue} onDone={() => setDialogue(null)} />
+              <DialogueBox speaker={view.name} text={dialogue?.text ?? null} tag={dialogue?.tag} onDone={() => setDialogue(null)} />
+            </div>
+            {/* Menu and microphone share a row above the actions so nothing overlaps at any phone height. */}
+            <div className="flex w-full max-w-lg items-end justify-end gap-2">
+              <MenuButton className="pointer-events-auto md:hidden" />
+              <Microphone pokemonId={view.id} onReply={onTalk} className="pointer-events-auto" />
             </div>
             <div className="pointer-events-auto flex w-full max-w-lg items-stretch gap-2 md:justify-center">
               <ActionButton icon="apple" label="Feed" onClick={() => setSheet("feed")} />
@@ -426,8 +490,6 @@ export function HomeScreen() {
               <ActionButton icon="bag" label="Items" onClick={() => setSheet("items")} />
             </div>
           </div>
-
-          <Microphone pokemonId={view.id} onReply={onTalk} home={{ right: 12, bottom: 0 }} />
 
           {!modelReady ? (
             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">

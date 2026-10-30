@@ -20,9 +20,11 @@ const FEATURED = [
 interface Props {
   open: boolean;
   onPicked: (view: PokemonView) => void;
+  /** The X and the backdrop. Home shows an empty-state card that reopens it. */
+  onClose: () => void;
 }
 
-export function StarterPicker({ open, onPicked }: Props) {
+export function StarterPicker({ open, onPicked, onClose }: Props) {
   const { toast } = useToast();
   const [all, setAll] = useState<StarterSpecies[] | null>(null);
   const [query, setQuery] = useState("");
@@ -65,7 +67,7 @@ export function StarterPicker({ open, onPicked }: Props) {
   };
 
   return (
-    <Sheet open={open} onClose={() => undefined} title="Choose your first pokemon" dim footer={<Footer nickname={nickname} setNickname={setNickname} chosenName={chosenName} busy={busy} pick={() => void pick()} />}>
+    <Sheet open={open} onClose={onClose} title="Choose your first pokemon" dim footer={<Footer nickname={nickname} setNickname={setNickname} chosenName={chosenName} busy={busy} pick={() => void pick()} />}>
       <p className="mb-3 text-sm text-ink-dim">It will live in the meadow and wait for you. Pick one that feels like a friend.</p>
       <label className="mb-3 block">
         <span className="sr-only">Search species</span>

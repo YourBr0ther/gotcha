@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assetUrl, poserFromEntry, resolveVariation } from "./bundle";
+import { assetUrl, pickFromManifest, poserFromEntry, rememberedVersion, rememberVersion, resolveVariation } from "./bundle";
 
 describe("bundle loader", () => {
   const resolvers = [
@@ -39,5 +39,47 @@ describe("bundle loader", () => {
       poses: { hovering: { poseTypes: ["HOVER"], animations: ["q.bedrock('flittle', 'air_idle')"] } },
     });
     expect("synthesized" in poser).toBe(false);
+  });
+});
+
+describe("pickFromManifest", () => {
+  const manifest = {
+    models: { eevee_female: "models/eevee_female.geo.json", eevee_male: "models/eevee_male.geo.json" },
+    animations: { eevee: { file: "animations/eevee.animation.json" } },
+    posers: { eevee: { file: "posers/eevee.json", synthesized: false } },
+    files: { species: "species.json" },
+    variations: [
+      { aspects: [], layers: [], model: "models/eevee_male.geo.json", poser: "posers/eevee.json", texture: "textures/eevee.png" },
+      { aspects: ["shiny"], texture: "textures/eevee_shiny.png" },
+      { aspects: ["alpha_eyes"], layers: [{ emissive: true, name: "alpha_eyes", texture: "textures/eevee_alpha.png" }] },
+      { aspects: ["female"], model: "models/eevee_female.geo.json" },
+    ],
+  };
+
+  it("maps the manifest's file paths back onto its model and poser keys", () => {
+    const picked = pickFromManifest(manifest, "eevee", []);
+    expect(picked.model).toBe("models/eevee_male.geo.json");
+    expect(picked.poser.file).toBe("posers/eevee.json");
+    expect(picked.animations).toBe("animations/eevee.animation.json");
+    expect(picked.texture).toBe("textures/eevee.png");
+    expect(picked.emissive).toBeUndefined();
+  });
+
+  it("applies aspect variations in order, so a shiny female gets the female model and the shiny skin", () => {
+    const picked = pickFromManifest(manifest, "eevee", ["female", "shiny", "alpha_eyes"]);
+    expect(picked.model).toBe("models/eevee_female.geo.json");
+    expect(picked.texture).toBe("textures/eevee_shiny.png");
+    expect(picked.emissive).toBe("textures/eevee_alpha.png");
+  });
+
+  it("throws when a map is empty rather than asking the route for undefined", () => {
+    expect(() => pickFromManifest({ ...manifest, models: {} }, "eevee", [])).toThrow(/missing model/);
+  });
+});
+
+describe("remembered versions", () => {
+  it("survives a missing localStorage", () => {
+    expect(rememberedVersion("eevee")).toBeUndefined();
+    expect(() => rememberVersion("eevee", "abc")).not.toThrow();
   });
 });

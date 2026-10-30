@@ -6,6 +6,8 @@ interface Props {
   speaker: string;
   text: string | null;
   onDone: () => void;
+  /** Tiny footer tag naming which brain answered, like "GLM" or "rules". */
+  tag?: string | null;
 }
 
 /**
@@ -13,7 +15,7 @@ interface Props {
  * finish the reveal and tap again to dismiss. Closes by itself a while
  * after the text is fully shown.
  */
-export function DialogueBox({ speaker, text, onDone }: Props) {
+export function DialogueBox({ speaker, text, onDone, tag }: Props) {
   const [shown, setShown] = useState(0);
   const [shownFor, setShownFor] = useState<string | null>(text);
   if (shownFor !== text) {
@@ -49,6 +51,11 @@ export function DialogueBox({ speaker, text, onDone }: Props) {
         {text.slice(0, shown)}
         {complete ? <span className="ml-1 inline-block animate-pulse">{"▼"}</span> : null}
       </span>
+      {tag ? (
+        <span className="mt-1 block text-right font-pixel text-[9px] uppercase tracking-wider text-ink-faint" data-testid="dialogue-source">
+          {tag}
+        </span>
+      ) : null}
     </button>
   );
 }

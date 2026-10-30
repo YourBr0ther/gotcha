@@ -227,6 +227,17 @@ lines and everything with `importance` 3 or higher. `relationships.json` is
 keyed by trainer id with `bond` 0 to 100, the name the pokemon uses for them,
 and up to ten notes.
 
+`episodic.jsonl` may hold entries newer than the last roll-up. An install
+keeps the day's events in a log until the nightly roll-up folds them into
+memories; the exporter appends the not-yet-rolled-up ones to the file as
+ordinary episodic lines, newest last, so a backup taken on the pokemon's
+first day is not empty. Those entries are not yet reflected in `summary.md`.
+A reader does not tell them apart, and on an install that has never seen the
+pokemon they are simply what it remembers. When the stored summary is empty
+the exporter writes a one-paragraph stand-in from the rules, with no model:
+`Hatched on <date>. <n> things have happened so far, most recently <last
+event summary>.` (or `Nothing has happened yet.`).
+
 ## pokedex.json
 
 A frozen snapshot of the species facts so the file reads the same even if
@@ -241,8 +252,9 @@ Inventory is the held item and worn cosmetics, both store item ids.
 History is the audit trail. `origin` repeats the identity origin with
 detail, `trainers` is every trainer in order with `from` and `to`
 timestamps, `trades` is a list of `{ at, fromInstall, toInstall, verified }`,
-`milestones` is a list of `{ at, kind, detail }`, `imports` is every import
-with the verification result.
+`milestones` is a list of `{ at, kind, detail }` (`kind` is free text; the
+importer writes `restored` when a released pokemon comes back from a backup,
+see below), `imports` is every import with the verification result.
 
 ## trade.json
 
@@ -265,6 +277,19 @@ It cannot be made active, fed, or exported again until the file is imported
 back (which cancels the trade) or the trade is confirmed by the recipient
 install calling back with the nonce, if both installs are reachable. If they
 are not, the sender confirms manually and the row is released.
+
+A released pokemon keeps its row, with status `released`, so its id is still
+known to the install. Importing a file with that id restores it when the
+importer is the trainer who released it (any file: the row is theirs) or the
+trainer the file's `currentTrainer` names (a verified file only: the
+signature is what stops a hand-built file from claiming someone else's
+release). The restore writes the file's members over the row, sets
+`lastTickAt` to the import time, places the pokemon in the first free party
+slot or else the PC, and adds `{ "kind": "restored" }` to
+`history.milestones`. Anyone else is refused unless the file carries a live
+trade offer addressed to them, the same bar as an in_transit arrival. Log
+rows the file already carries as episodic entries are marked rolled up on
+any import of a known id, so the next roll-up does not record them twice.
 
 ## Versioning
 
