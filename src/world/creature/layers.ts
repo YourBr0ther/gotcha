@@ -14,6 +14,12 @@
  *   - the swing amount is min(1, blocks per tick * 4), eased toward.
  * Front-left and back-right legs share a phase; the other pair is opposite.
  * Arms swing opposite to the leg on the same side.
+ *
+ * `q.sine_wing_flap(amplitude, period, verticalShift, axis, left, right)`
+ * follows Cobblemon's WingFlapIdleAnimation over a sine wave function:
+ * amplitude in radians, period in seconds, vertical shift in degrees (the
+ * JSON posers write 25 where the Kotlin ones write 25F.toRadians()). The
+ * left wing gets the wave, the right wing its negative, on the named axis.
  */
 
 import * as THREE from "three";
@@ -25,6 +31,8 @@ const TICKS = 20;
 
 export interface LayerInput {
   dt: number;
+  /** Seconds since the stack was created; drives the wing flap. */
+  time?: number;
   /** Ground speed in blocks per second. */
   speed: number;
   /** Model scale (Cobblemon baseScale). A half-size creature takes twice the steps per block. */
@@ -78,6 +86,7 @@ export class ProceduralStack {
   private applied: AppliedDelta[] = [];
   private readonly walk = new WalkState();
   private readonly look = new Map<string, LookState>();
+  private elapsed = 0;
   private readonly scratch = {
     target: new THREE.Vector3(),
     origin: new THREE.Vector3(),
@@ -92,7 +101,6 @@ export class ProceduralStack {
   ) {
     for (const spec of specs) {
       if (spec.kind === "unknown") warnOnce(`poser:${spec.name}`, `poser built-in ${spec.name} is not implemented; ignoring "${spec.expr}"`);
-      if (spec.kind === "sine_wing_flap") warnOnce("poser:q.sine_wing_flap", "q.sine_wing_flap is stubbed; wings hold still");
     }
   }
 
@@ -127,6 +135,8 @@ export class ProceduralStack {
 
   /** Compute and add this frame's deltas. Call after the mixer updates. */
   apply(input: LayerInput): void {
+    this.elapsed += input.dt;
+    const time = input.time ?? this.elapsed;
     let walkAdvanced = false;
     for (const spec of this.specs) {
       switch (spec.kind) {
@@ -164,11 +174,28 @@ export class ProceduralStack {
         case "look":
           this.applyLook(spec, input);
           break;
-        case "sine_wing_flap":
+        case "sine_wing_flap": {
+          const value = this.wingFlap(spec, time);
+          this.addAxis(spec.wings[0], spec.axis, value);
+          this.addAxis(spec.wings[1], spec.axis, -value);
+          break;
+        }
         case "unknown":
           break;
       }
     }
+  }
+
+  /** The wave in radians at a time, before the left/right sign. */
+  wingFlap(spec: Extract<ProceduralSpec, { kind: "sine_wing_flap" }>, time: number): number {
+    const period = spec.period > 0 ? spec.period : 1;
+    return spec.verticalShift * DEG + spec.amplitude * Math.sin((2 * Math.PI * time) / period);
+  }
+
+  private addAxis(name: string, axis: "x" | "y" | "z", bedrockRadians: number): void {
+    if (axis === "x") this.add(name, bedrockRadians, 0, 0);
+    else if (axis === "y") this.add(name, 0, bedrockRadians, 0);
+    else this.add(name, 0, 0, bedrockRadians);
   }
 
   private applyLook(spec: Extract<ProceduralSpec, { kind: "look" }>, input: LayerInput): void {

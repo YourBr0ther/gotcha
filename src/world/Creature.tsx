@@ -72,7 +72,7 @@ function Rig({ rig, token, dioramaId }: { rig: CreatureRig; token: number; diora
   const store = useWorldStore();
 
   useEffect(() => {
-    store.attachCreature(rig, token, rig.height);
+    store.attachCreature(rig, token, rig.height, rig.restSpot);
     if (process.env.NODE_ENV !== "production") {
       (window as unknown as { __creatureRig?: CreatureRig }).__creatureRig = rig;
     }
@@ -83,7 +83,8 @@ function Rig({ rig, token, dioramaId }: { rig: CreatureRig; token: number; diora
 
   useEffect(() => {
     rig.setDiorama(getDiorama(dioramaId));
-  }, [rig, dioramaId]);
+    store.attachCreature(rig, token, rig.height, rig.restSpot);
+  }, [rig, dioramaId, store, token]);
 
   useFrame((state, delta) => {
     rig.update(Math.min(delta, 0.1), state.camera.position);

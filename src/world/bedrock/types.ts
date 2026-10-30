@@ -100,8 +100,9 @@ export interface PoserPose {
   poseName?: string;
   poseTypes?: string[];
   transformTicks?: number;
-  animations?: string[];
-  quirks?: string[];
+  /** Molang calls; a few posers add `{ animation, condition }` objects, which the reader skips. */
+  animations?: Array<string | { animation?: string; condition?: string }>;
+  quirks?: Array<string | { animation?: string; condition?: string }>;
   isBattle?: boolean;
   [key: string]: unknown;
 }

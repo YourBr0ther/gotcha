@@ -6,7 +6,9 @@
 
 import { randomUUID } from "node:crypto";
 import { validateMember, type CpkmnPokemon, type Gender } from "@gotcha/cpkmn";
-import { freshState, freshStats, neutralPersonality, type Temperament } from "@/lib/sim";
+import { createPersonality, enrichVoice } from "@/lib/brain/personality";
+import { factsFromPokedex } from "@/lib/brain/menu";
+import { freshState, freshStats, type Temperament } from "@/lib/sim";
 import { schema, type Db } from "@/lib/db";
 import type { PokemonRow, TrainerRow } from "@/lib/db/schema";
 import { ServiceError } from "./errors";
@@ -21,8 +23,6 @@ export const NATURES = [
   "calm", "gentle", "sassy", "careful", "quirky",
 ] as const;
 
-/** A starter gets one trait and a temperament; the brain fleshes the personality out later. */
-export const STARTER_TRAITS = ["curious", "playful", "gentle", "brave", "shy", "greedy", "stubborn", "cheerful"] as const;
 export const TEMPERAMENTS: readonly Temperament[] = ["playful", "calm", "bold", "timid", "grumpy"];
 
 export interface StarterInput {
@@ -45,10 +45,9 @@ export function buildStarter(record: SpeciesRecord, trainer: TrainerRow, input: 
   const trainerRef = { trainerId: trainer.id, name: trainer.displayName };
   const stats = freshStats(record.experienceGroup);
   stats.friendship = record.baseFriendship;
-  const personality = neutralPersonality();
-  personality.traits = [STARTER_TRAITS[Math.floor(random() * STARTER_TRAITS.length)]];
-  personality.temperament = TEMPERAMENTS[Math.floor(random() * TEMPERAMENTS.length)];
-  personality.promptSeed = Math.floor(random() * 2 ** 31);
+  const pokedex = pokedexSnapshot(record, now);
+  // The brain's seeded generator; the same seed gives the same pokemon on any install.
+  const personality = createPersonality(factsFromPokedex(pokedex), Math.floor(random() * 2 ** 31));
 
   const pokemon: CpkmnPokemon = {
     identity: {
@@ -73,7 +72,7 @@ export function buildStarter(record: SpeciesRecord, trainer: TrainerRow, input: 
     state: freshState(now),
     personality,
     memories: { summary: "", episodic: [], relationships: {} },
-    pokedex: pokedexSnapshot(record, now),
+    pokedex,
     inventory: { heldItem: null, cosmetics: [] },
     history: {
       origin: { kind: "starter", at: now, detail: `Chosen by ${trainer.displayName}` },
@@ -94,6 +93,8 @@ export function buildStarter(record: SpeciesRecord, trainer: TrainerRow, input: 
 export async function createStarter(db: Db, trainer: TrainerRow, input: StarterInput, now = new Date().toISOString()): Promise<PokemonRow> {
   const record = await getSpecies(input.species);
   const pokemon = buildStarter(record, trainer, input, now);
+  // With a key the model writes the voice; without one the rules-made voice stays.
+  pokemon.personality = await enrichVoice(pokemon.personality, factsFromPokedex(pokemon.pokedex));
 
   return db.transaction(async (tx) => {
     const owned = await lockAll(tx, trainer.id);

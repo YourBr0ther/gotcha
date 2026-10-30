@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { getDiorama } from "./dioramas";
+import type { LightRig } from "./dioramas/types";
 import { useWorldStore } from "./WorldContext";
 
 interface Key {
@@ -30,23 +32,35 @@ const KEYS: Key[] = [
 
 const SHADOW_HALF = 16;
 
+export const DEFAULT_RIG: LightRig = { sun: 1, hemi: 1, fogNear: 14, fogFar: 36 };
+
+/** 0 at night, 1 in full day, smooth through dawn and dusk. */
+export function daylight(hours: number): number {
+  const up = THREE.MathUtils.smoothstep(hours, 5, 8);
+  const down = 1 - THREE.MathUtils.smoothstep(hours, 17.5, 20.5);
+  return Math.min(up, down);
+}
+
 interface Scratch {
   b: THREE.Color;
   sky: THREE.Color;
   fog: THREE.Fog;
   applied: number;
+  appliedRig: LightRig | null;
 }
 
-/** Interpolate the keys for an hour and write them to the scene and lights. */
+/** Interpolate the keys for an hour, scale by the scene's rig, and write to the scene and lights. */
 export function applyTimeOfDay(
   hours: number,
   scene: THREE.Scene,
   sun: THREE.DirectionalLight | null,
   hemi: THREE.HemisphereLight | null,
   s: Scratch,
+  rig: LightRig = DEFAULT_RIG,
 ): void {
-  if (hours === s.applied) return;
+  if (hours === s.applied && rig === s.appliedRig) return;
   s.applied = hours;
+  s.appliedRig = rig;
   let i = 0;
   while (i < KEYS.length - 2 && KEYS[i + 1].hour <= hours) i++;
   const k0 = KEYS[i];
@@ -55,14 +69,18 @@ export function applyTimeOfDay(
   const t = span > 0 ? THREE.MathUtils.clamp((hours - k0.hour) / span, 0, 1) : 0;
   const smooth = t * t * (3 - 2 * t);
 
-  s.sky.setHex(k0.sky).lerp(s.b.setHex(k1.sky), smooth);
+  if (rig.sky !== undefined) s.sky.setHex(rig.sky);
+  else s.sky.setHex(k0.sky).lerp(s.b.setHex(k1.sky), smooth);
   scene.background = s.sky;
-  s.fog.color.setHex(k0.fog).lerp(s.b.setHex(k1.fog), smooth);
+  if (rig.fog !== undefined) s.fog.color.setHex(rig.fog);
+  else s.fog.color.setHex(k0.fog).lerp(s.b.setHex(k1.fog), smooth);
+  s.fog.near = rig.fogNear;
+  s.fog.far = rig.fogFar;
   scene.fog = s.fog;
 
   if (sun) {
     sun.color.setHex(k0.sun).lerp(s.b.setHex(k1.sun), smooth);
-    sun.intensity = THREE.MathUtils.lerp(k0.sunIntensity, k1.sunIntensity, smooth);
+    sun.intensity = THREE.MathUtils.lerp(k0.sunIntensity, k1.sunIntensity, smooth) * rig.sun;
     // Sun arcs from east at 6 to west at 18; at night the moon takes a low mirrored path.
     const angle = ((hours - 6) / 12) * Math.PI;
     let y = Math.sin(angle);
@@ -78,7 +96,7 @@ export function applyTimeOfDay(
   if (hemi) {
     hemi.color.setHex(k0.hemiSky).lerp(s.b.setHex(k1.hemiSky), smooth);
     hemi.groundColor.setHex(k0.hemiGround).lerp(s.b.setHex(k1.hemiGround), smooth);
-    hemi.intensity = THREE.MathUtils.lerp(k0.hemiIntensity, k1.hemiIntensity, smooth);
+    hemi.intensity = THREE.MathUtils.lerp(k0.hemiIntensity, k1.hemiIntensity, smooth) * rig.hemi;
   }
 }
 
@@ -92,10 +110,11 @@ export function DayNight() {
     sky: new THREE.Color(),
     fog: new THREE.Fog(0x000000, 14, 36),
     applied: -1,
+    appliedRig: null,
   }));
 
   useFrame(() => {
-    applyTimeOfDay(store.state.timeOfDay, scene, sun.current, hemi.current, scratch);
+    applyTimeOfDay(store.state.timeOfDay, scene, sun.current, hemi.current, scratch, getDiorama(store.state.diorama).lights);
   });
 
   return (

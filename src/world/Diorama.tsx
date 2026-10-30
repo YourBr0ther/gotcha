@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import { BLOCK_IDS, BLOCKS, createBlockGeometry, createBlockMaterial, type BlockId } from "./blocks/palette";
+import { Backdrop } from "./Backdrop";
+import { BLOCK_IDS, BLOCKS, createBlockGeometry, createBlockMaterial, createEmissiveBlockMaterial, type BlockId } from "./blocks/palette";
 import { getDiorama } from "./dioramas";
 import type { DioramaDef } from "./dioramas/types";
+import { Snow } from "./Particles";
 import { useWorldState } from "./WorldContext";
 
 interface Built {
@@ -12,7 +14,7 @@ interface Built {
   dispose(): void;
 }
 
-function buildInstances(def: DioramaDef, material: THREE.Material): Built {
+function buildInstances(def: DioramaDef, material: THREE.Material, emissive: THREE.Material): Built {
   const group = new THREE.Group();
   group.name = `diorama:${def.id}`;
   const geometries: THREE.BufferGeometry[] = [];
@@ -32,13 +34,13 @@ function buildInstances(def: DioramaDef, material: THREE.Material): Built {
     if (!list?.length) continue;
     const geometry = createBlockGeometry(id);
     geometries.push(geometry);
-    const mesh = new THREE.InstancedMesh(geometry, material, list.length);
+    const block = BLOCKS[id];
+    const mesh = new THREE.InstancedMesh(geometry, block.emissive ? emissive : material, list.length);
     mesh.name = `blocks:${id}`;
-    const def = BLOCKS[id];
-    mesh.castShadow = !!def.castShadow;
-    mesh.receiveShadow = !!def.receiveShadow;
+    mesh.castShadow = !!block.castShadow;
+    mesh.receiveShadow = !!block.receiveShadow;
+    const full = !block.size;
     list.forEach((b, i) => {
-      const full = !BLOCKS[id].size;
       pos.set(full ? b.x + 0.5 : b.x, b.y, full ? b.z + 0.5 : b.z);
       quat.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, b.rotationY ?? 0);
       matrix.compose(pos, quat, one);
@@ -59,28 +61,35 @@ function buildInstances(def: DioramaDef, material: THREE.Material): Built {
 }
 
 export function Diorama() {
-  const { diorama } = useWorldState();
+  const { diorama, depth } = useWorldState();
   const def = getDiorama(diorama);
   const material = useMemo(() => createBlockMaterial(), []);
-  const built = useMemo(() => buildInstances(def, material), [def, material]);
+  const emissive = useMemo(() => createEmissiveBlockMaterial(), []);
+  const built = useMemo(() => buildInstances(def, material, emissive), [def, material, emissive]);
 
   useEffect(() => () => built.dispose(), [built]);
-  useEffect(() => () => material.dispose(), [material]);
+  useEffect(
+    () => () => {
+      material.dispose();
+      emissive.dispose();
+    },
+    [material, emissive],
+  );
 
   return (
-    <>
+    <group key={def.id}>
       <primitive object={built.group} />
       {def.water.map((w, i) => (
-        <mesh
-          key={i}
-          position={[w.x + w.w / 2, w.y, w.z + w.d / 2]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          receiveShadow
-        >
+        <mesh key={i} position={[w.x + w.w / 2, w.y, w.z + w.d / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[w.w, w.d]} />
-          <meshLambertMaterial color={0x3f8fe0} transparent opacity={0.72} />
+          <meshLambertMaterial color={def.lights.sky !== undefined ? 0x2f6fb0 : 0x3f8fe0} transparent opacity={0.72} />
         </mesh>
       ))}
-    </>
+      {def.lights.points?.map((p, i) => (
+        <pointLight key={i} position={[p.x, p.y, p.z]} color={p.color} intensity={p.intensity} distance={p.distance} decay={2} />
+      ))}
+      {depth && <Backdrop def={def.backdrop} />}
+      {depth && def.particles === "snow" && <Snow />}
+    </group>
   );
 }

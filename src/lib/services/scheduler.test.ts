@@ -44,7 +44,10 @@ describe("scheduler", () => {
       const ran = await runDueTicks(t.db, now);
       expect(ran.map((d) => d.pokemonId)).toEqual([active.id]);
       expect(await dueForTick(t.db, now)).toEqual([]);
-      expect(messages).toMatchObject([{ type: "state", cause: "settle" }]);
+      // The settle publishes a state view, then the brain hook's plan follows
+      // (rules-only here, since no model is configured).
+      expect(messages[0]).toMatchObject({ type: "state", cause: "settle" });
+      expect(messages.some((m) => (m as { type?: string }).type === "brain")).toBe(true);
       const row = await t.db.query.pokemon.findFirst();
       expect(row?.state.lastTickAt).toBe(now);
     } finally {

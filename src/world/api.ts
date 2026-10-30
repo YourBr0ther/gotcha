@@ -11,6 +11,7 @@ import type { DioramaId } from "./dioramas";
 
 export type { Activity } from "./bedrock/poser";
 export type { DioramaId } from "./dioramas";
+export { DIORAMA_IDS, isDioramaId } from "./dioramas";
 
 export type EmoteKind = "happy" | "love" | "sad" | "angry" | "question" | "surprise" | "sleepy" | "music";
 
@@ -23,6 +24,7 @@ export interface PokemonBundle {
   textures: {
     base: string;
     shiny?: string;
+    /** Glow layer (alpha eyes, cave species); drawn as emissive over the base. */
     emissive?: string;
   };
   sounds?: {
@@ -36,6 +38,7 @@ export interface PokemonBundle {
 export interface WorldHandle {
   /** Load a pokemon. Resolves once its model and texture are on screen. */
   setPokemon(bundle: PokemonBundle, aspects?: string[]): Promise<void>;
+  /** Swap scenes behind a short fade. */
   setDiorama(id: DioramaId): void;
   /** Play the clip the poser maps to the activity. Cancels a move in progress. */
   play(activity: Activity): void;
@@ -43,10 +46,16 @@ export interface WorldHandle {
   emote(kind: EmoteKind): void;
   /** Play the cry clip and the cry sound when the bundle has one. */
   cry(): void;
-  /** Walk to a named spot. Resolves true on arrival, false if interrupted or unreachable. */
+  /**
+   * Travel to a named spot. Resolves true on arrival, false if interrupted
+   * or unreachable. A species that cannot leave the water is sent to the
+   * nearest water spot instead; a flier hovers over the spot.
+   */
   moveTo(spot: string): Promise<boolean>;
   /** Hours since midnight, fractional. Drives the light rig. */
   setTimeOfDay(hours: number): void;
+  /** Show or hide the ambient wild pokemon. Off is cheaper on a slow phone. */
+  setAmbient(enabled: boolean): void;
 }
 
 export interface WorldState {
@@ -59,6 +68,13 @@ export interface WorldState {
   loadToken: number;
   /** Height of the creature on screen in blocks; the camera frames around it. */
   focusHeight: number;
+  /** Where the creature rests after loading (y is its body height off the ground); null means the diorama's own subject. */
+  focus: { x: number; y: number; z: number } | null;
+  /** True while the scene swap overlay is opaque. */
+  fading: boolean;
+  ambient: boolean;
+  /** The painted backdrop and weather particles; off is a few frames cheaper. */
+  depth: boolean;
 }
 
 export function localHours(now = new Date()): number {

@@ -12,7 +12,11 @@
 
 import type { PoserFile, PoserPose } from "./types";
 
-export const ACTIVITIES = ["idle", "walk", "sleep", "swim", "fly", "cry", "faint"] as const;
+/**
+ * `float` and `hover` are the resting poses in water and in the air; the
+ * rig picks them when a swimmer or flier stands still off the ground.
+ */
+export const ACTIVITIES = ["idle", "walk", "sleep", "swim", "float", "fly", "hover", "cry", "faint"] as const;
 export type Activity = (typeof ACTIVITIES)[number];
 
 export type ProceduralSpec =
@@ -61,7 +65,9 @@ const POSE_TYPES: Record<Activity, string[]> = {
   walk: ["WALK"],
   sleep: ["SLEEP"],
   swim: ["SWIM", "FLOAT"],
+  float: ["FLOAT", "SWIM"],
   fly: ["FLY", "HOVER"],
+  hover: ["HOVER", "FLY"],
   cry: [],
   faint: [],
 };
@@ -71,8 +77,10 @@ const FALLBACK: Record<Activity, Activity[]> = {
   idle: [],
   walk: ["idle"],
   sleep: ["idle"],
-  swim: ["walk", "idle"],
-  fly: ["walk", "idle"],
+  swim: ["float", "walk", "idle"],
+  float: ["swim", "idle"],
+  fly: ["hover", "walk", "idle"],
+  hover: ["fly", "idle"],
   cry: ["idle"],
   faint: ["sleep", "idle"],
 };
@@ -210,6 +218,16 @@ function pickClip(name: string, available?: Set<string>): string | undefined {
   return undefined;
 }
 
+/**
+ * Pose animation lists are strings, but a few posers carry
+ * `{ animation, condition }` objects for riding and held items. Their
+ * conditions (`q.is_ridden`, `q.is_holding_item`) are never true here, so
+ * those entries are skipped.
+ */
+function animationExpressions(list: unknown[] | undefined): string[] {
+  return (list ?? []).filter((entry): entry is string => typeof entry === "string");
+}
+
 function buildStack(animations: string[], available?: Set<string>): PoseStack {
   const stack: PoseStack = { clips: [], procedural: [] };
   for (const expr of animations) {
@@ -242,7 +260,7 @@ export function readPoser(poser: PoserFile, availableClips?: Iterable<string>): 
       const typed = list.filter((p) => p.poseTypes?.includes(type));
       const pose = typed.find((p) => !isBattle(p)) ?? typed[0];
       if (!pose) continue;
-      const stack = buildStack(pose.animations ?? [], available);
+      const stack = buildStack(animationExpressions(pose.animations), available);
       if (stack.clips.length || stack.procedural.length) {
         poses[activity] = stack;
         break;
@@ -265,7 +283,7 @@ export function readPoser(poser: PoserFile, availableClips?: Iterable<string>): 
   const faint = oneShot(["faint"]);
 
   for (const pose of list) {
-    for (const expr of pose.quirks ?? []) {
+    for (const expr of animationExpressions(pose.quirks)) {
       const name = clipNameFromExpression(expr);
       const picked = name ? pickClip(name, available) : undefined;
       if (picked && !quirks.includes(picked)) quirks.push(picked);

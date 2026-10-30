@@ -162,3 +162,22 @@ describe("battle poses", () => {
     expect(map.poses.sleep?.clips).toEqual(["animation.pika.battle_sleep"]);
   });
 });
+
+describe("resting poses off the ground", () => {
+  it("maps FLOAT to float and HOVER to hover, each falling back to its moving pose", () => {
+    const map = readPoser({
+      poses: {
+        fly: { poseTypes: ["FLY"], animations: ["q.bedrock('zubat', 'air_fly')"] },
+        hover: { poseTypes: ["HOVER"], animations: ["q.bedrock('zubat', 'air_idle')"] },
+        swim: { poseTypes: ["SWIM"], animations: ["q.bedrock('zubat', 'water_swim')"] },
+        standing: { poseTypes: ["STAND"], animations: ["q.bedrock('zubat', 'ground_idle')"] },
+      },
+    });
+    expect(map.poses.hover?.clips).toEqual(["animation.zubat.air_idle"]);
+    expect(map.poses.fly?.clips).toEqual(["animation.zubat.air_fly"]);
+    expect(resolveActivity(map, "float")?.clips).toEqual(["animation.zubat.water_swim"]);
+    const walker = readPoser({ poses: { standing: { poseTypes: ["STAND"], animations: ["q.bedrock('x', 'idle')"] } } });
+    expect(resolveActivity(walker, "hover")?.clips).toEqual(["animation.x.idle"]);
+    expect(resolveActivity(walker, "float")?.clips).toEqual(["animation.x.idle"]);
+  });
+});

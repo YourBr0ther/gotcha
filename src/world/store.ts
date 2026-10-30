@@ -18,6 +18,9 @@ export interface CreatureController {
 
 type Listener = () => void;
 
+/** How long the overlay takes to cover the scene, then to clear again. */
+export const FADE_MS = 220;
+
 export class WorldStore {
   state: WorldState = {
     bundle: null,
@@ -27,12 +30,18 @@ export class WorldStore {
     timeOfDay: localHours(),
     loadToken: 0,
     focusHeight: 0.9,
+    focus: null,
+    fading: false,
+    ambient: true,
+    depth: true,
   };
 
   private listeners = new Set<Listener>();
   private creature: CreatureController | null = null;
   private loadWaiters = new Map<number, { resolve: () => void; reject: (e: Error) => void }>();
   private creatureWaiters: Array<(c: CreatureController) => void> = [];
+  private fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingDiorama: DioramaId | null = null;
 
   readonly handle: WorldHandle = {
     setPokemon: (bundle, aspects = []) => this.setPokemon(bundle, aspects),
@@ -43,6 +52,9 @@ export class WorldStore {
     moveTo: (spot) => this.moveTo(spot),
     setTimeOfDay: (hours) => {
       this.state = { ...this.state, timeOfDay: ((hours % 24) + 24) % 24 };
+    },
+    setAmbient: (enabled) => {
+      if (enabled !== this.state.ambient) this.set({ ambient: enabled });
     },
   };
 
@@ -71,9 +83,25 @@ export class WorldStore {
     return promise;
   }
 
+  /**
+   * Cover the scene, swap it while covered, uncover. A second call during
+   * the fade just changes which scene appears when the overlay lifts.
+   */
   private setDiorama(id: DioramaId): void {
+    if (id === this.state.diorama && !this.pendingDiorama) return;
+    this.pendingDiorama = id;
+    if (this.fadeTimer) return;
     this.creature?.cancelMove();
-    this.set({ diorama: id });
+    this.set({ fading: true });
+    this.fadeTimer = setTimeout(() => {
+      const next = this.pendingDiorama ?? this.state.diorama;
+      this.pendingDiorama = null;
+      this.set({ diorama: next });
+      this.fadeTimer = setTimeout(() => {
+        this.fadeTimer = null;
+        this.set({ fading: false });
+      }, FADE_MS);
+    }, FADE_MS);
   }
 
   private play(activity: Activity): void {
@@ -95,9 +123,10 @@ export class WorldStore {
   }
 
   /** Called by the creature once its model is in the scene. */
-  attachCreature(controller: CreatureController, loadToken: number, height: number): void {
+  attachCreature(controller: CreatureController, loadToken: number, height: number, focus: { x: number; y: number; z: number } | null = null): void {
     this.creature = controller;
-    if (height !== this.state.focusHeight) this.set({ focusHeight: height });
+    const f = this.state.focus;
+    if (height !== this.state.focusHeight || focus?.x !== f?.x || focus?.y !== f?.y || focus?.z !== f?.z) this.set({ focusHeight: height, focus });
     const waiter = this.loadWaiters.get(loadToken);
     if (waiter) {
       this.loadWaiters.delete(loadToken);
@@ -118,6 +147,15 @@ export class WorldStore {
 
   detachCreature(controller: CreatureController): void {
     if (this.creature === controller) this.creature = null;
+  }
+
+  setDepth(enabled: boolean): void {
+    if (enabled !== this.state.depth) this.set({ depth: enabled });
+  }
+
+  dispose(): void {
+    if (this.fadeTimer) clearTimeout(this.fadeTimer);
+    this.fadeTimer = null;
   }
 }
 

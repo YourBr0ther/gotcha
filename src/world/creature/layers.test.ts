@@ -110,3 +110,45 @@ describe("slow walkers", () => {
     expect(w.amount).toBeLessThan(0.01);
   });
 });
+
+describe("sine wing flap", () => {
+  it("flaps the wings against each other on the named axis with the given period", () => {
+    const { root, bones } = rig(["wl", "wr"]);
+    const stack = new ProceduralStack(bones, root, [
+      { kind: "sine_wing_flap", amplitude: 0.9, period: 0.9, verticalShift: 0, axis: "z", wings: ["wl", "wr"] },
+    ]);
+    // A quarter period in: the sine peaks.
+    stack.apply({ dt: 0, time: 0.225, speed: 0, lookTarget: null });
+    expect(bones.get("wl")!.rotation.z).toBeCloseTo(0.9, 3);
+    expect(bones.get("wr")!.rotation.z).toBeCloseTo(-0.9, 3);
+    expect(bones.get("wl")!.rotation.x).toBe(0);
+    stack.restore();
+    expect(bones.get("wl")!.rotation.z).toBe(0);
+    // Three quarters in: the trough.
+    stack.apply({ dt: 0, time: 0.675, speed: 0, lookTarget: null });
+    expect(bones.get("wl")!.rotation.z).toBeCloseTo(-0.9, 3);
+  });
+
+  it("treats the vertical shift as degrees and negates the X axis like the loader", () => {
+    const { root, bones } = rig(["wl", "wr"]);
+    const stack = new ProceduralStack(bones, root, [
+      { kind: "sine_wing_flap", amplitude: 0, period: 1, verticalShift: 25, axis: "x", wings: ["wl", "wr"] },
+    ]);
+    stack.apply({ dt: 0, time: 0, speed: 0, lookTarget: null });
+    expect(bones.get("wl")!.rotation.x).toBeCloseTo((-25 * Math.PI) / 180, 5);
+    expect(bones.get("wr")!.rotation.x).toBeCloseTo((25 * Math.PI) / 180, 5);
+  });
+
+  it("keeps its own clock when no time is passed", () => {
+    const { root, bones } = rig(["wl", "wr"]);
+    const stack = new ProceduralStack(bones, root, [
+      { kind: "sine_wing_flap", amplitude: 1, period: 1, verticalShift: 0, axis: "y", wings: ["wl", "wr"] },
+    ]);
+    for (let i = 0; i < 25; i++) {
+      stack.restore();
+      stack.apply({ dt: 0.01, speed: 0, lookTarget: null });
+    }
+    // 0.25 s in: the sine peaks, and Y is negated by the convention.
+    expect(bones.get("wl")!.rotation.y).toBeCloseTo(-1, 2);
+  });
+});

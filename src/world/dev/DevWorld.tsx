@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { EmoteKind, WorldHandle } from "../api";
-import { localHours } from "../api";
+import type { DioramaId, EmoteKind, WorldHandle } from "../api";
+import { isDioramaId, localHours } from "../api";
+import { getDiorama } from "../dioramas";
 import { createCubeBundle } from "../fixtures";
 import World from "../World";
-import { loadCacheBundle } from "./cacheBundle";
+import { loadSpeciesBundle } from "../bundle";
 
-const ROUTE = ["forage_1", "play_1", "forage_2", "sleep_1", "play_1"] as const;
+/** The demo loop visits these in order, skipping any the diorama lacks. */
+const ROUTE = ["forage_1", "play_1", "swim_1", "forage_2", "air_1", "sleep_1", "play_1"] as const;
 const EMOTES: EmoteKind[] = ["happy", "love", "question", "music", "surprise"];
 
 function wait(ms: number, alive: { current: boolean }): Promise<void> {
@@ -25,6 +27,9 @@ interface Params {
   aspects: string[];
   /** demo=0 holds the creature at the spawn spot, for framing checks. */
   demo: boolean;
+  diorama: DioramaId;
+  ambient: boolean;
+  depth: boolean;
 }
 
 function readParams(): Params {
@@ -37,6 +42,9 @@ function readParams(): Params {
     species: q.get("species"),
     aspects,
     demo: q.get("demo") !== "0",
+    diorama: isDioramaId(q.get("diorama") ?? "") ? (q.get("diorama") as DioramaId) : "meadow",
+    ambient: q.get("ambient") !== "0",
+    depth: q.get("depth") !== "0",
   };
 }
 
@@ -45,9 +53,17 @@ export default function DevWorld() {
   const [status, setStatus] = useState("loading");
   const handleRef = useRef<WorldHandle | null>(null);
 
-  const onReady = useCallback((handle: WorldHandle) => {
-    handleRef.current = handle;
-  }, []);
+  // Applied here as well as in the run effect, so a remount of <World>
+  // (hot reload gives it a fresh store) keeps the scene the URL asked for.
+  const onReady = useCallback(
+    (handle: WorldHandle) => {
+      handleRef.current = handle;
+      handle.setTimeOfDay(params.hour ?? localHours());
+      handle.setAmbient(params.ambient);
+      handle.setDiorama(params.diorama);
+    },
+    [params],
+  );
 
   useEffect(() => {
     const alive = { current: true };
@@ -56,8 +72,10 @@ export default function DevWorld() {
       const handle = handleRef.current;
       if (!handle) return;
       handle.setTimeOfDay(params.hour ?? localHours());
+      handle.setAmbient(params.ambient);
+      if (params.diorama !== "meadow") handle.setDiorama(params.diorama);
       setStatus(params.species ? `loading ${params.species}` : "loading cube");
-      const bundle = params.species ? await loadCacheBundle(params.species, params.aspects) : createCubeBundle();
+      const bundle = params.species ? await loadSpeciesBundle(params.species, params.aspects) : createCubeBundle();
       await handle.setPokemon(bundle, params.aspects);
       setStatus("idle");
       await wait(1500, alive);
@@ -72,8 +90,9 @@ export default function DevWorld() {
         }
         return;
       }
+      const route = ROUTE.filter((spot) => spot in getDiorama(params.diorama).spots);
       while (alive.current) {
-        const spot = ROUTE[i % ROUTE.length];
+        const spot = route[i % route.length];
         setStatus(`walking to ${spot}`);
         const arrived = await handle.moveTo(spot);
         if (!alive.current) break;
@@ -119,7 +138,7 @@ export default function DevWorld() {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#0b1026" }}>
-      <World onReady={onReady} debug={params.debug} debugExtra={status} />
+      <World onReady={onReady} debug={params.debug} debugExtra={status} depth={params.depth} />
     </div>
   );
 }
