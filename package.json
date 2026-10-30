@@ -24,7 +24,8 @@
     "pokedex:build": "tsx packages/pokedex/src/cli.ts build",
     "pokedex:refresh": "tsx packages/pokedex/src/cli.ts build --refresh",
     "db:studio": "drizzle-kit studio",
-    "brain:smoke": "tsx scripts/brain-smoke.mts"
+    "brain:smoke": "tsx scripts/brain-smoke.mts",
+    "anim:sweep": "tsx scripts/anim-sweep.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.34",

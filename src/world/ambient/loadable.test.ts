@@ -33,6 +33,13 @@ describe("ambientLoadable", () => {
     expect(ambientLoadable(manifest, [animated])).toBe("animated texture");
   });
 
+  it("rejects a poser whose resting pose has no clip, and accepts one that has", () => {
+    const withPoses = (poses: Record<string, { poseTypes?: string[]; clips?: string[] }>): AmbientManifest => ({ ...manifest, posers: { eevee: { file: "posers/eevee.json", poses } } });
+    expect(ambientLoadable(withPoses({ standing: { poseTypes: ["STAND"], clips: ["eevee:ground_idle"] } }), [base])).toBeNull();
+    expect(ambientLoadable(withPoses({ cry: { poseTypes: [], clips: ["eevee:cry"] } }), [base])).toBe("no idle pose");
+    expect(ambientLoadable(withPoses({ standing: { poseTypes: ["STAND"], clips: [] } }), [base])).toBe("no idle pose");
+  });
+
   it("rejects a manifest with no base variation, no resolvers, or no animation file", () => {
     expect(ambientLoadable(manifest, [{ variations: [{ aspects: ["shiny"], texture: "x.png" }] }])).toBe("no base variation");
     expect(ambientLoadable(manifest, [])).toBe("no resolvers");

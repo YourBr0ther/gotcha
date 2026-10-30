@@ -35,6 +35,25 @@ const FLY_FACTOR = 1.3;
 const CLIMB_SPEED = 1.6; // blocks per second up or down
 const TURN_SPEED = 9; // radians per second
 const FADE = 0.25;
+
+/**
+ * Starts (or re-fades) a base pose clip at full weight.
+ *
+ * The base weight must be 1: three.js multiplies the fade curve by it, so
+ * `setEffectiveWeight(0).fadeIn()` ramps from 0 to 0 and the clip never
+ * shows. That bug left every walker in its rest pose mid-stride and, after
+ * the first walk, in its rest pose while idle too (Bayleef's head leaf
+ * jutting straight out was the first visible symptom).
+ */
+export function startBaseAction(action: THREE.AnimationAction, immediate: boolean, fade = FADE): void {
+  if (!action.isRunning()) action.reset();
+  action.enabled = true;
+  action.setEffectiveTimeScale(1);
+  action.stopFading();
+  action.setEffectiveWeight(1);
+  if (!immediate) action.fadeIn(fade);
+  action.play();
+}
 const EMOTE_SECONDS = 1.8;
 const ARRIVE_EPSILON = 0.05;
 
@@ -302,13 +321,11 @@ export class CreatureRig implements CreatureController {
     for (const name of next) {
       const action = this.action(name);
       if (!action) continue;
-      if (this.baseClips.includes(name) && action.isRunning()) continue;
-      action.reset();
-      action.enabled = true;
-      action.setEffectiveTimeScale(1);
-      if (immediate) action.setEffectiveWeight(1);
-      else action.setEffectiveWeight(0).fadeIn(FADE);
-      action.play();
+      // Already playing at full weight: leave it alone so a repeated
+      // setActivity (shoreline changes, idle after idle) does not restart it.
+      // A clip mid fade-out has dropped below full weight and is restarted.
+      if (this.baseClips.includes(name) && action.isRunning() && action.getEffectiveWeight() >= 0.999) continue;
+      startBaseAction(action, immediate);
     }
     this.baseClips = [...next];
     this.procedural.restore();

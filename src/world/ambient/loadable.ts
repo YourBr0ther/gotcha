@@ -15,7 +15,7 @@ import { pickAmbient, type AmbientCandidate, type AmbientPick } from "./candidat
 export interface AmbientManifest {
   models?: Record<string, unknown>;
   animations?: Record<string, { file?: unknown } | null | undefined>;
-  posers?: Record<string, { file?: unknown; synthesized?: unknown } | null | undefined>;
+  posers?: Record<string, { file?: unknown; synthesized?: unknown; poses?: Record<string, { poseTypes?: unknown; clips?: unknown; animations?: unknown }> } | null | undefined>;
   files?: { resolvers?: unknown };
 }
 
@@ -60,7 +60,26 @@ export function ambientLoadable(manifest: AmbientManifest, resolvers: AmbientRes
   if (typeof poserEntry.file !== "string" && poserEntry.synthesized !== true) return "poser without a file";
   const animation = manifest.animations?.[poser] ?? firstValue(manifest.animations);
   if (!animation || typeof animation.file !== "string" || animation.file.length === 0) return "no animation file";
+  if (poserEntry.poses && !hasIdlePose(poserEntry.poses)) return "no idle pose";
   return null;
+}
+
+const IDLE_TYPES = new Set(["STAND", "NONE", "FLOAT", "HOVER"]);
+const PROCEDURAL = /q\.(quadruped_walk|biped_walk|bimanual_swing|sine_wing_flap)/;
+
+/**
+ * A species whose resting pose resolves to nothing (five of them in 1.8.4:
+ * durant, herdier, lillipup, pupitar, tangela, which Cobblemon animates in
+ * code) would stand in its bind pose. Keep those out of the scenery.
+ */
+function hasIdlePose(poses: Record<string, { poseTypes?: unknown; clips?: unknown; animations?: unknown }>): boolean {
+  for (const pose of Object.values(poses)) {
+    const types = Array.isArray(pose.poseTypes) ? pose.poseTypes : [];
+    if (!types.some((t) => typeof t === "string" && IDLE_TYPES.has(t))) continue;
+    if (Array.isArray(pose.clips) && pose.clips.length > 0) return true;
+    if (Array.isArray(pose.animations) && pose.animations.some((a) => typeof a === "string" && PROCEDURAL.test(a))) return true;
+  }
+  return false;
 }
 
 async function getJson<T>(url: string): Promise<T> {
