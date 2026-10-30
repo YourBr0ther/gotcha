@@ -95,6 +95,7 @@ export class CreatureRig implements CreatureController {
   private yaw = Math.PI;
   private targetYaw = Math.PI;
   private readonly speed: number;
+  private readonly scale: number;
   private currentSpeed = 0;
   private blinkIn = 2 + Math.random() * 4;
   private readonly sprite: THREE.Sprite;
@@ -107,6 +108,7 @@ export class CreatureRig implements CreatureController {
   constructor(readonly loaded: LoadedCreature, diorama: DioramaDef) {
     this.diorama = diorama;
     const scale = loaded.bundle.baseScale ?? 1;
+    this.scale = scale;
     loaded.model.root.scale.multiplyScalar(scale);
     this.group.add(loaded.model.root);
     this.height = Math.max(0.3, loaded.model.bounds.max.y * scale);
@@ -340,6 +342,7 @@ export class CreatureRig implements CreatureController {
     this.procedural.apply({
       dt,
       speed: this.currentSpeed,
+      scale: this.scale,
       lookTarget: this.activity === "idle" && !this.isMoving ? lookTarget : null,
     });
   }

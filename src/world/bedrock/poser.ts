@@ -10,7 +10,7 @@
  * one-shot clips the creature plays now and then on top of everything.
  */
 
-import type { PoserFile } from "./types";
+import type { PoserFile, PoserPose } from "./types";
 
 export const ACTIVITIES = ["idle", "walk", "sleep", "swim", "fly", "cry", "faint"] as const;
 export type Activity = (typeof ACTIVITIES)[number];
@@ -231,9 +231,16 @@ export function readPoser(poser: PoserFile, availableClips?: Iterable<string>): 
   const quirks: string[] = [];
   const list = Object.values(poser.poses ?? {});
 
+  // Cobblemon tags battle stances with isBattle (a boolean, or the string
+  // "true" in a few hand-edited posers). Pikachu lists "battle-standing"
+  // before "standing", both typed STAND, so taking the first match put him in
+  // his fighting crouch on the lawn. Overworld poses win; a battle pose is
+  // only used when nothing else carries the type.
+  const isBattle = (p: PoserPose) => p.isBattle === true || (p.isBattle as unknown) === "true";
   for (const activity of ACTIVITIES) {
     for (const type of POSE_TYPES[activity]) {
-      const pose = list.find((p) => p.poseTypes?.includes(type));
+      const typed = list.filter((p) => p.poseTypes?.includes(type));
+      const pose = typed.find((p) => !isBattle(p)) ?? typed[0];
       if (!pose) continue;
       const stack = buildStack(pose.animations ?? [], available);
       if (stack.clips.length || stack.procedural.length) {

@@ -146,3 +146,19 @@ describe("readPoser", () => {
     expect(map.poses.idle?.clips).toEqual(["animation.cube_shiny.ground_idle"]);
   });
 });
+
+describe("battle poses", () => {
+  it("prefers the overworld pose when a battle pose shares the STAND type, even when listed first", () => {
+    const poser = {
+      poses: {
+        "battle-standing": { poseTypes: ["STAND"], isBattle: true, animations: ["q.bedrock('pika', 'battle_idle')"] },
+        standing: { poseTypes: ["STAND", "NONE"], isBattle: false, animations: ["q.bedrock('pika', 'ground_idle')"] },
+        quirky: { poseTypes: ["SLEEP"], isBattle: "true" as unknown as boolean, animations: ["q.bedrock('pika', 'battle_sleep')"] },
+      },
+    } as unknown as PoserFile;
+    const map = readPoser(poser, ["animation.pika.battle_idle", "animation.pika.ground_idle", "animation.pika.battle_sleep"]);
+    expect(map.poses.idle?.clips).toEqual(["animation.pika.ground_idle"]);
+    // A battle pose is still used when it is the only one carrying the type.
+    expect(map.poses.sleep?.clips).toEqual(["animation.pika.battle_sleep"]);
+  });
+});

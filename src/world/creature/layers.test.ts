@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { ProceduralStack } from "./layers";
+import { ProceduralStack, WalkState } from "./layers";
 
 function rig(names: string[]) {
   const root = new THREE.Group();
@@ -94,5 +94,19 @@ describe("procedural layers", () => {
     expect(state.pitch).toBeCloseTo(70, 0);
     const down = new THREE.Vector3(0, 0, -1).applyEuler(head.rotation);
     expect(down.y).toBeLessThan(-0.8);
+  });
+});
+
+describe("slow walkers", () => {
+  it("a half-scale creature at Cobblemon walking pace still takes visible strides", () => {
+    const w = new WalkState();
+    const before = w.phase;
+    for (let i = 0; i < 120; i++) w.advance(0.66, 0.85, 1 / 60, 0.5);
+    expect(w.amount).toBeCloseTo(0.45, 2);
+    // At least one stride per second: phase advances more than 2*pi over two seconds.
+    expect(w.phase - before).toBeGreaterThan(Math.PI * 2);
+    // Standing still eases back to nothing.
+    for (let i = 0; i < 120; i++) w.advance(0.66, 0, 1 / 60, 0.5);
+    expect(w.amount).toBeLessThan(0.01);
   });
 });

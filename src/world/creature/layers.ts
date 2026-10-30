@@ -27,6 +27,8 @@ export interface LayerInput {
   dt: number;
   /** Ground speed in blocks per second. */
   speed: number;
+  /** Model scale (Cobblemon baseScale). A half-size creature takes twice the steps per block. */
+  scale?: number;
   /** World-space point the creature is looking at, or null to look ahead. */
   lookTarget: THREE.Vector3 | null;
 }
@@ -38,13 +40,24 @@ interface AppliedDelta {
   z: number;
 }
 
+/**
+ * Below this, a moving creature's legs barely twitch and it reads as gliding.
+ * Vanilla's formula gives Eevee (0.85 blocks/s at half scale) a swing of
+ * 0.17: fourteen degrees, one stride every three seconds. Pokemon in the
+ * mod walk slowly but still look like they are walking, so any real
+ * movement gets at least this much.
+ */
+const MIN_SWING = 0.45;
+const MOVING = 0.05;
+
 /** Limb swing shared by every walk-style layer in a stack. */
 export class WalkState {
   phase = 0;
   amount = 0;
 
-  advance(period: number, speed: number, dt: number): void {
-    const target = Math.min(1, (speed / TICKS) * 4);
+  advance(period: number, speed: number, dt: number, scale = 1): void {
+    const perTick = speed / Math.max(0.1, scale) / TICKS;
+    const target = speed > MOVING ? Math.min(1, Math.max(MIN_SWING, perTick * 4)) : 0;
     const k = Math.min(1, dt * 10);
     this.amount += (target - this.amount) * k;
     this.phase += this.amount * period * TICKS * dt;
@@ -119,7 +132,7 @@ export class ProceduralStack {
       switch (spec.kind) {
         case "quadruped_walk": {
           if (!walkAdvanced) {
-            this.walk.advance(spec.period, input.speed, input.dt);
+            this.walk.advance(spec.period, input.speed, input.dt, input.scale ?? 1);
             walkAdvanced = true;
           }
           const a = this.walk.swing(spec.amplitude, 0);
@@ -132,7 +145,7 @@ export class ProceduralStack {
         }
         case "biped_walk": {
           if (!walkAdvanced) {
-            this.walk.advance(spec.period, input.speed, input.dt);
+            this.walk.advance(spec.period, input.speed, input.dt, input.scale ?? 1);
             walkAdvanced = true;
           }
           this.add(spec.legs[0], this.walk.swing(spec.amplitude, 0), 0, 0);
@@ -141,7 +154,7 @@ export class ProceduralStack {
         }
         case "bimanual_swing": {
           if (!walkAdvanced) {
-            this.walk.advance(spec.period, input.speed, input.dt);
+            this.walk.advance(spec.period, input.speed, input.dt, input.scale ?? 1);
             walkAdvanced = true;
           }
           this.add(spec.arms[0], this.walk.swing(spec.amplitude, Math.PI), 0, 0);
