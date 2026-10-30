@@ -41,7 +41,7 @@ describe.each(DIORAMA_IDS)("%s diorama", (id) => {
     for (const w of d.water) {
       const c = worldToCell(d.nav, w.x + w.w / 2, w.z + w.d / 2);
       expect(isWalkable(d.nav, c.cx, c.cz)).toBe(false);
-      expect(isWalkable(d.swimNav, c.cx, c.cz)).toBe(true);
+      expect(isWalkable(d.swimNav, c.cx, c.cz)).toBe(w.swimmable !== false);
     }
     expect(d.air.length).toBeGreaterThan(0);
     expect(d.spots.air_1.medium).toBe("air");
@@ -55,13 +55,43 @@ describe.each(DIORAMA_IDS)("%s diorama", (id) => {
 });
 
 describe("meadow", () => {
-  it("keeps the pond and trees off the navmesh", () => {
+  it("keeps the pool, the brook and the trees off the land navmesh", () => {
     const d = meadow();
-    const pond = worldToCell(d.nav, 5.5, -6.5);
-    expect(isWalkable(d.nav, pond.cx, pond.cz)).toBe(false);
-    const trunk = worldToCell(d.nav, -12.5, -2.5);
-    expect(isWalkable(d.nav, trunk.cx, trunk.cz)).toBe(false);
-    expect(d.water).toHaveLength(1);
+    for (const [x, z] of [
+      [2.5, -9.5],
+      [8.5, -8.5],
+      [-12.5, -5.5],
+    ]) {
+      const c = worldToCell(d.nav, x, z);
+      expect(isWalkable(d.nav, c.cx, c.cz), `${x},${z}`).toBe(false);
+    }
+    expect(d.water).toHaveLength(3);
+  });
+
+  it("keeps the stream above the fall out of both grids and still reaches every land spot", () => {
+    const d = meadow();
+    const channel = d.water.find((w) => w.swimmable === false)!;
+    expect(channel).toBeDefined();
+    expect(channel.y).toBeGreaterThan(1);
+    const c = worldToCell(d.nav, channel.x + 1.5, channel.z + 5.5);
+    expect(isWalkable(d.nav, c.cx, c.cz)).toBe(false);
+    expect(isWalkable(d.swimNav, c.cx, c.cz)).toBe(false);
+    // The fall sits on the channel's mouth and drops into the pool's surface.
+    expect(d.falls).toHaveLength(1);
+    const f = d.falls[0];
+    expect(f.z).toBe(channel.z + channel.d);
+    expect(f.top).toBe(channel.y);
+    expect(f.bottom).toBeLessThan(d.water[0].y);
+    // The swimmer's pool is one body with the brook, so the swim grid connects them.
+    const pool = worldToCell(d.swimNav, 2.5, -9.5);
+    const brook = worldToCell(d.swimNav, 12.5, -8.5);
+    expect(findPath(d.swimNav, pool, brook)).not.toBeNull();
+    // Land spots on both sides of the water still reach each other around it.
+    const start = worldToCell(d.nav, d.spots.play_1.x, d.spots.play_1.z);
+    for (const name of ["forage_2", "sleep_1", "ambient_1", "ambient_2"]) {
+      const s = d.spots[name];
+      expect(findPath(d.nav, start, worldToCell(d.nav, s.x, s.z)), name).not.toBeNull();
+    }
   });
 });
 

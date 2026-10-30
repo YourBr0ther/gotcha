@@ -10,10 +10,6 @@ import { useWorldStore } from "./WorldContext";
 const WIDTH = 512;
 const HEIGHT = 256;
 
-function hex(c: number): string {
-  return `#${c.toString(16).padStart(6, "0")}`;
-}
-
 function blob(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -32,10 +28,11 @@ function rand(seed: number): () => number {
 }
 
 /**
- * Paint the blurred wall: a sky gradient and two rows of soft silhouettes,
- * the far row paler. The blur is the canvas filter where the browser has it
- * and plain soft shapes where it does not; either way it reads as depth of
- * field without a post pass.
+ * Paint the far wall: three rows of soft silhouettes over a transparent
+ * sky, the far rows paler and hazier so they sit behind the near one. The
+ * sky itself is the dome behind the plane. The blur is the canvas filter
+ * where the browser has it and plain soft shapes where it does not; the
+ * depth-of-field pass softens the whole plane again on top.
  */
 export function paintBackdrop(def: BackdropDef): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -43,21 +40,17 @@ export function paintBackdrop(def: BackdropDef): HTMLCanvasElement {
   canvas.height = HEIGHT;
   const ctx = canvas.getContext("2d")!;
   const r = rand(def.sky ^ def.silhouette);
-
-  const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-  sky.addColorStop(0, hex(def.sky));
-  sky.addColorStop(0.62, hex(def.horizon));
-  sky.addColorStop(1, hex(def.silhouette));
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
   const sil = new THREE.Color(def.silhouette);
   const hor = new THREE.Color(def.horizon);
-  const far = sil.clone().lerp(hor, 0.55);
-  const near = sil.clone().lerp(hor, 0.2);
+  const far = sil.clone().lerp(hor, 0.45);
+  const mid = sil.clone().lerp(hor, 0.22);
+  const near = sil.clone().lerp(hor, 0.05);
   const rows: Array<{ color: THREE.Color; base: number; scale: number; blur: number }> = [
-    { color: far, base: HEIGHT * 0.66, scale: 0.7, blur: 7 },
-    { color: near, base: HEIGHT * 0.8, scale: 1, blur: 4 },
+    { color: far, base: HEIGHT * 0.5, scale: 0.75, blur: 7 },
+    { color: mid, base: HEIGHT * 0.64, scale: 1, blur: 5 },
+    { color: near, base: HEIGHT * 0.8, scale: 1.3, blur: 3 },
   ];
 
   for (const row of rows) {
@@ -71,12 +64,15 @@ export function paintBackdrop(def: BackdropDef): HTMLCanvasElement {
     switch (def.style) {
       case "trees":
       case "reeds": {
-        for (let x = -20; x < WIDTH + 20; x += 18 * row.scale) {
-          const h = (40 + r() * 50) * row.scale;
+        ctx.fillRect(0, row.base, WIDTH, HEIGHT);
+        for (let x = -20; x < WIDTH + 20; x += 16 * row.scale) {
+          const h = (50 + r() * 70) * row.scale;
           ctx.fillRect(x - 3 * row.scale, row.base - h, 6 * row.scale, h + HEIGHT);
-          blob(ctx, x, row.base - h, (14 + r() * 10) * row.scale);
-          blob(ctx, x + 8 * row.scale, row.base - h + 12 * row.scale, (12 + r() * 8) * row.scale);
-          blob(ctx, x - 9 * row.scale, row.base - h + 10 * row.scale, (11 + r() * 8) * row.scale);
+          // A canopy of three or four blobs, the lowest the widest.
+          blob(ctx, x, row.base - h, (12 + r() * 8) * row.scale);
+          blob(ctx, x + 9 * row.scale, row.base - h + 14 * row.scale, (14 + r() * 8) * row.scale);
+          blob(ctx, x - 10 * row.scale, row.base - h + 12 * row.scale, (13 + r() * 8) * row.scale);
+          blob(ctx, x + 2 * row.scale, row.base - h + 26 * row.scale, (16 + r() * 8) * row.scale);
         }
         if (def.style === "reeds") {
           ctx.fillStyle = `#${row.color.clone().lerp(hor, 0.3).getHexString()}`;
@@ -141,7 +137,8 @@ export function paintBackdrop(def: BackdropDef): HTMLCanvasElement {
   return canvas;
 }
 
-const NIGHT_TINT = new THREE.Color(0x2a3358);
+const NIGHT_TINT = new THREE.Color(0x202a4c);
+const WHITE = new THREE.Color(0xffffff);
 
 /** The painted wall behind the far edge of the scene. */
 export function Backdrop({ def }: { def: BackdropDef }) {
@@ -166,14 +163,15 @@ export function Backdrop({ def }: { def: BackdropDef }) {
     if (hours === s.applied) return;
     s.applied = hours;
     const light = def.style === "rock" ? 1 : daylight(hours);
-    m.color.copy(NIGHT_TINT).lerp(s.color.set(0xffffff), light);
+    // Dusk and dawn warm the wall the way they warm the fog.
+    m.color.copy(NIGHT_TINT).lerp(s.color.copy(store.lighting.hemiSky).lerp(WHITE, 0.7), light);
   });
 
   const width = def.height * (WIDTH / HEIGHT);
   return (
     <mesh position={[0.5, def.height / 2 - 1.5, def.z]}>
       <planeGeometry args={[width, def.height]} />
-      <meshBasicMaterial ref={material} map={texture} toneMapped={false} />
+      <meshBasicMaterial ref={material} map={texture} transparent />
     </mesh>
   );
 }

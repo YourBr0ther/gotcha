@@ -1,73 +1,43 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import * as THREE from "three";
 import { Backdrop } from "./Backdrop";
-import { BLOCK_IDS, BLOCKS, createBlockGeometry, createBlockMaterial, createEmissiveBlockMaterial, type BlockId } from "./blocks/palette";
+import { buildVoxelGeometry } from "./blocks/mesher";
+import { createBlockMaterial, createEmissiveBlockMaterial } from "./blocks/palette";
 import { getDiorama } from "./dioramas";
-import type { DioramaDef } from "./dioramas/types";
 import { Snow } from "./Particles";
+import { Tufts } from "./Tufts";
+import { Falls, Water } from "./Water";
 import { useWorldState } from "./WorldContext";
 
-interface Built {
-  group: THREE.Group;
-  dispose(): void;
-}
-
-function buildInstances(def: DioramaDef, material: THREE.Material, emissive: THREE.Material): Built {
-  const group = new THREE.Group();
-  group.name = `diorama:${def.id}`;
-  const geometries: THREE.BufferGeometry[] = [];
-  const byBlock = new Map<BlockId, typeof def.blocks>();
-  for (const b of def.blocks) {
-    const list = byBlock.get(b.block) ?? [];
-    list.push(b);
-    byBlock.set(b.block, list);
-  }
-  const matrix = new THREE.Matrix4();
-  const quat = new THREE.Quaternion();
-  const pos = new THREE.Vector3();
-  const one = new THREE.Vector3(1, 1, 1);
-  const color = new THREE.Color();
-  for (const id of BLOCK_IDS) {
-    const list = byBlock.get(id);
-    if (!list?.length) continue;
-    const geometry = createBlockGeometry(id);
-    geometries.push(geometry);
-    const block = BLOCKS[id];
-    const mesh = new THREE.InstancedMesh(geometry, block.emissive ? emissive : material, list.length);
-    mesh.name = `blocks:${id}`;
-    mesh.castShadow = !!block.castShadow;
-    mesh.receiveShadow = !!block.receiveShadow;
-    const full = !block.size;
-    list.forEach((b, i) => {
-      pos.set(full ? b.x + 0.5 : b.x, b.y, full ? b.z + 0.5 : b.z);
-      quat.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, b.rotationY ?? 0);
-      matrix.compose(pos, quat, one);
-      mesh.setMatrixAt(i, matrix);
-      color.setHex(b.tint ?? 0xffffff);
-      mesh.setColorAt(i, color);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    group.add(mesh);
-  }
-  return {
-    group,
-    dispose() {
-      for (const g of geometries) g.dispose();
-    },
-  };
-}
-
+/**
+ * One diorama: every block merged into a lit mesh and an emissive mesh with
+ * ambient occlusion in their vertex colours, the water surfaces and falls,
+ * the grass tufts, any always-on lights, and behind it all the painted wall.
+ */
 export function Diorama() {
   const { diorama, depth } = useWorldState();
   const def = getDiorama(diorama);
   const material = useMemo(() => createBlockMaterial(), []);
   const emissive = useMemo(() => createEmissiveBlockMaterial(), []);
-  const built = useMemo(() => buildInstances(def, material, emissive), [def, material, emissive]);
+  const built = useMemo(
+    () =>
+      buildVoxelGeometry(def.blocks, {
+        minX: def.nav.originX,
+        maxX: def.nav.originX + def.nav.width - 1,
+        minZ: def.nav.originZ,
+        maxZ: def.nav.originZ + def.nav.depth - 1,
+      }),
+    [def],
+  );
 
-  useEffect(() => () => built.dispose(), [built]);
+  useEffect(
+    () => () => {
+      built.lit.dispose();
+      built.emissive?.dispose();
+    },
+    [built],
+  );
   useEffect(
     () => () => {
       material.dispose();
@@ -78,13 +48,15 @@ export function Diorama() {
 
   return (
     <group key={def.id}>
-      <primitive object={built.group} />
+      <mesh geometry={built.lit} material={material} castShadow receiveShadow />
+      {built.emissive && <mesh geometry={built.emissive} material={emissive} />}
       {def.water.map((w, i) => (
-        <mesh key={i} position={[w.x + w.w / 2, w.y, w.z + w.d / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[w.w, w.d]} />
-          <meshLambertMaterial color={def.lights.sky !== undefined ? 0x2f6fb0 : 0x3f8fe0} transparent opacity={0.72} />
-        </mesh>
+        <Water key={i} volume={w} />
       ))}
+      {def.falls.map((f, i) => (
+        <Falls key={i} def={f} />
+      ))}
+      <Tufts def={def} />
       {def.lights.points?.map((p, i) => (
         <pointLight key={i} position={[p.x, p.y, p.z]} color={p.color} intensity={p.intensity} distance={p.distance} decay={2} />
       ))}

@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
+import * as THREE from "three";
 import type { WorldHandle } from "./api";
 import { Creature } from "./Creature";
 import { DayNight } from "./DayNight";
 import { Diorama } from "./Diorama";
+import { Effects } from "./Effects";
 import { FixedCamera } from "./FixedCamera";
 import { DebugOverlay, StatsProbe, type StatsSample } from "./Stats";
 import { Ambient } from "./Ambient";
@@ -19,7 +21,7 @@ export interface WorldProps {
   debug?: boolean;
   /** Extra text for the overlay's third line. */
   debugExtra?: string;
-  /** Painted backdrop and weather particles. Default on; off for a slow device. */
+  /** The post chain (depth of field, bloom, anti-aliasing), the painted backdrop and weather particles. Default on; off for a slow device. */
   depth?: boolean;
   /** Anything to float over the world, like the HUD. */
   children?: ReactNode;
@@ -59,7 +61,14 @@ export default function World({ onReady, debug = false, debugExtra, depth = true
         dpr={[1, 2]}
         frameloop={visible ? "always" : "never"}
         shadows="soft"
-        gl={{ antialias: true, powerPreference: "high-performance", alpha: false }}
+        gl={{
+          antialias: true,
+          powerPreference: "high-performance",
+          alpha: false,
+          toneMapping: THREE.ACESFilmicToneMapping,
+          toneMappingExposure: 1,
+          outputColorSpace: THREE.SRGBColorSpace,
+        }}
         camera={{ fov: 50, near: 0.1, far: 80, position: [0.9, 1.35, 4.4] }}
         style={{ position: "absolute", inset: 0 }}
       >
@@ -69,6 +78,7 @@ export default function World({ onReady, debug = false, debugExtra, depth = true
           <Diorama />
           <Creature />
           <Ambient />
+          {depth && <Effects />}
           {debug && <StatsProbe onSample={onSample} />}
         </WorldStoreContext.Provider>
       </Canvas>

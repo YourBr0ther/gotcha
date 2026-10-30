@@ -7,6 +7,7 @@
 
 import type { Activity, DioramaId, EmoteKind, PokemonBundle, WorldHandle, WorldState } from "./api";
 import { localHours } from "./api";
+import { createLighting, type Lighting } from "./lighting";
 
 export interface CreatureController {
   moveTo(spot: string): Promise<boolean>;
@@ -35,6 +36,9 @@ export class WorldStore {
     ambient: true,
     depth: true,
   };
+
+  /** The light rig as applied this frame; written by DayNight, read by water and grass. */
+  readonly lighting: Lighting = createLighting();
 
   private listeners = new Set<Listener>();
   private creature: CreatureController | null = null;

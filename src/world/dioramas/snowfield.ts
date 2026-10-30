@@ -87,7 +87,7 @@ export function buildSnowfield(): DioramaDef {
     id: "snowfield",
     spots,
     spawn: spots.play_1,
-    lights: { sun: 0.95, hemi: 1.15, fogNear: 10, fogFar: 30 },
+    lights: { sun: 0.95, hemi: 1.1, fogNear: 14, fogFar: 44 },
     backdrop: { style: "spruce", sky: 0xbcd4e8, horizon: 0xe8f0f8, silhouette: 0x2b4a3a, z: -24, height: 14 },
     framing: { subject: SUBJECT },
     particles: "snow",

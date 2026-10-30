@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { fetchAmbientCandidates, pickAmbient, type AmbientPick } from "./ambient/candidates";
+import { fetchAmbientCandidates, type AmbientPick } from "./ambient/candidates";
+import { pickLoadableAmbient, probeAmbient } from "./ambient/loadable";
 import { loadSpeciesBundle } from "./bundle";
 import { CreatureRig, loadCreature } from "./creature/rig";
 import { getDiorama, type DioramaId } from "./dioramas";
@@ -66,7 +67,8 @@ export function Ambient() {
         return;
       }
       const candidates = await fetchAmbientCandidates(diorama);
-      const picks = pickAmbient(candidates, diorama, active ? [active] : []);
+      const picks = await pickLoadableAmbient(candidates, diorama, active ? [active] : [], probeAmbient);
+      if (cancelled) return;
       const loaded = await Promise.all(
         picks.map(async (pick) => {
           const b = await loadSpeciesBundle(pick.species);

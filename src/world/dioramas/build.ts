@@ -7,7 +7,7 @@
 
 import type { BlockId } from "../blocks/palette";
 import { createNavGrid, isWalkable, setWalkable, type NavGrid } from "../nav/grid";
-import type { AirVolume, BlockInstance, DioramaDef, Spot, WaterVolume } from "./types";
+import type { AirVolume, BlockInstance, DioramaDef, Falls, Spot, WaterVolume } from "./types";
 
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -53,6 +53,7 @@ export class SceneBuilder {
   readonly nav: NavGrid;
   readonly swimNav: NavGrid;
   readonly water: WaterVolume[] = [];
+  readonly falls: Falls[] = [];
   readonly air: AirVolume[] = [];
   readonly rand: () => number;
   private readonly reserved = new Set<string>();
@@ -113,11 +114,17 @@ export class SceneBuilder {
 
   tree(x: number, z: number, base: number, options: TreeOptions = {}): void {
     const trunk = options.trunk ?? "log";
-    const leaves = options.leaves ?? ["leaves", "leaves_light"];
-    const height = options.height ?? 4 + Math.floor(this.rand() * 2);
+    const leaves = options.leaves ?? ["leaves_dark", "leaves", "leaves_light"];
+    const height = options.height ?? 5 + Math.floor(this.rand() * 2);
     const radius = options.radius ?? 2;
     const shape = options.shape ?? "round";
     const leaf = () => leaves[Math.min(leaves.length - 1, Math.floor(this.rand() * leaves.length))];
+    // Canopy layers run from the darkest shade underneath to the lightest on
+    // top, with a little mixing so no layer is one flat colour.
+    const shade = (t: number) => {
+      const i = Math.round(t * (leaves.length - 1)) + (this.rand() < 0.25 ? (this.rand() < 0.5 ? -1 : 1) : 0);
+      return leaves[Math.max(0, Math.min(leaves.length - 1, i))];
+    };
     for (let y = 0; y < height; y++) this.block(trunk, x, base + y, z);
     this.walkable(x, z, false);
     const top = base + height;
@@ -158,29 +165,64 @@ export class SceneBuilder {
       this.block(leaf(), x, top + 2, z);
       return;
     }
-    for (let dy = -1; dy <= 1; dy++) {
-      const r = dy === 1 ? radius - 1 : radius;
+    // Round: a wide dark skirt, a full middle, a narrower light crown and a cap.
+    const layers: Array<{ dy: number; r: number; t: number }> =
+      radius >= 3
+        ? [
+            { dy: -2, r: radius - 1, t: 0 },
+            { dy: -1, r: radius, t: 0.2 },
+            { dy: 0, r: radius, t: 0.5 },
+            { dy: 1, r: radius - 1, t: 0.75 },
+            { dy: 2, r: radius - 2, t: 1 },
+          ]
+        : [
+            { dy: -1, r: radius, t: 0 },
+            { dy: 0, r: radius, t: 0.45 },
+            { dy: 1, r: radius - 1, t: 0.85 },
+          ];
+    for (const { dy, r, t } of layers) {
       for (let dx = -r; dx <= r; dx++) {
         for (let dz = -r; dz <= r; dz++) {
-          if (Math.abs(dx) === r && Math.abs(dz) === r && this.rand() < 0.6) continue;
+          // Trim most corners so the canopy rounds off, and leave the trunk column open below the crown.
+          if (Math.abs(dx) === r && Math.abs(dz) === r && (r > 1 || this.rand() < 0.6)) continue;
+          if (r >= 3 && Math.abs(dx) + Math.abs(dz) > r + 1 && this.rand() < 0.7) continue;
           if (dx === 0 && dz === 0 && dy < 1) continue;
-          this.block(leaf(), x + dx, top + dy, z + dz);
+          this.block(shade(t), x + dx, top + dy, z + dz);
         }
       }
     }
-    this.block(leaf(), x, top + 2, z);
-    if (this.rand() < 0.5) this.block(leaf(), x + (this.rand() < 0.5 ? 1 : -1), top + 2, z);
+    const capY = top + (radius >= 3 ? 3 : 2);
+    this.block(shade(1), x, capY, z);
+    if (this.rand() < 0.6) this.block(shade(1), x + (this.rand() < 0.5 ? 1 : -1), capY, z);
+    if (radius >= 3 && this.rand() < 0.6) this.block(shade(1), x, capY, z + (this.rand() < 0.5 ? 1 : -1));
   }
 
-  /** A water volume; its cells leave the land navmesh and join the swim one. */
+  /** A stem with a cap; white and pink daisies get a yellow centre. */
+  flower(x: number, z: number, kind: "flower_white" | "flower_pink" | "flower_yellow", y = 0): void {
+    this.block("stem", x, y, z);
+    this.block(kind, x, y + 0.42, z, { rotationY: this.rand() * Math.PI * 0.5 });
+    if (kind !== "flower_yellow") this.block("flower_centre", x, y + 0.56, z);
+  }
+
+  mushroom(x: number, z: number, cap: "mushroom_red" | "mushroom_brown", y = 0): void {
+    this.block("mushroom_stem", x, y, z);
+    this.block(cap, x, y + 0.4, z, { rotationY: this.rand() * Math.PI * 0.5 });
+  }
+
+  /** A water volume; its cells leave the land navmesh and, unless it is marked unswimmable, join the swim one. */
   addWater(volume: WaterVolume): void {
     this.water.push(volume);
     for (let z = volume.z; z < volume.z + volume.d; z++) {
       for (let x = volume.x; x < volume.x + volume.w; x++) {
         this.walkable(x, z, false);
-        setWalkable(this.swimNav, x - this.bounds.minX, z - this.bounds.minZ, true);
+        if (volume.swimmable !== false) setWalkable(this.swimNav, x - this.bounds.minX, z - this.bounds.minZ, true);
       }
     }
+  }
+
+  /** A waterfall sheet; purely visual, the volumes above and below decide where a creature may go. */
+  addFalls(falls: Falls): void {
+    this.falls.push(falls);
   }
 
   inWater(x: number, z: number): boolean {
@@ -200,8 +242,8 @@ export class SceneBuilder {
     });
   }
 
-  finish(def: Omit<DioramaDef, "blocks" | "water" | "air" | "nav" | "swimNav">): DioramaDef {
-    return { ...def, blocks: this.blocks, water: this.water, air: this.air, nav: this.nav, swimNav: this.swimNav };
+  finish(def: Omit<DioramaDef, "blocks" | "water" | "falls" | "air" | "nav" | "swimNav">): DioramaDef {
+    return { ...def, blocks: this.blocks, water: this.water, falls: this.falls, air: this.air, nav: this.nav, swimNav: this.swimNav };
   }
 }
 

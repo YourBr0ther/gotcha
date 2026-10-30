@@ -85,7 +85,7 @@ export function buildBeach(): DioramaDef {
     id: "beach",
     spots,
     spawn: spots.play_1,
-    lights: { sun: 1.15, hemi: 1.1, fogNear: 18, fogFar: 44 },
+    lights: { sun: 1.1, hemi: 1.05, fogNear: 24, fogFar: 70 },
     backdrop: { style: "palms", sky: 0x6fc3ff, horizon: 0xbfe8ff, silhouette: 0x2e7fb8, z: -24, height: 14 },
     framing: { subject: SUBJECT },
     particles: "none",

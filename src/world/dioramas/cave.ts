@@ -121,7 +121,7 @@ export function buildCave(): DioramaDef {
     id: "cave",
     spots,
     spawn: spots.play_1,
-    lights: { sun: 0.5, hemi: 0.9, fogNear: 7, fogFar: 24, sky: 0x06070d, fog: 0x0b0e1a, points },
+    lights: { sun: 0.45, hemi: 0.9, fogNear: 9, fogFar: 30, sky: 0x06070d, fog: 0x0b0e1a, points },
     backdrop: { style: "rock", sky: 0x0b0d16, horizon: 0x14182a, silhouette: 0x0a0c14, z: -24, height: 12 },
     framing: { subject: SUBJECT },
     particles: "none",

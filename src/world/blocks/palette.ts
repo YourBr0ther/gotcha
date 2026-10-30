@@ -1,8 +1,9 @@
 /**
  * The flat-colour block palette dioramas are built from. Each block is a
- * unit cube with a colour per face baked into vertex colours, so one
- * InstancedMesh with one material draws every block of a kind. Emissive
- * blocks draw unlit so they read as their own light source.
+ * unit cube with a colour per face; the mesher in `mesher.ts` bakes those
+ * colours, a per-cell variation and ambient occlusion into vertex colours
+ * on one merged geometry per diorama. Emissive blocks draw unlit so they
+ * read as their own light source.
  */
 
 import * as THREE from "three";
@@ -26,6 +27,7 @@ export type BlockId =
   | "log_palm"
   | "leaves"
   | "leaves_light"
+  | "leaves_dark"
   | "leaves_spruce"
   | "leaves_palm"
   | "tuft"
@@ -34,6 +36,7 @@ export type BlockId =
   | "flower_white"
   | "flower_pink"
   | "flower_yellow"
+  | "flower_centre"
   | "mushroom_stem"
   | "mushroom_red"
   | "mushroom_brown"
@@ -53,33 +56,39 @@ export interface BlockDef {
   receiveShadow?: boolean;
   /** Drawn unlit at full colour so it glows. */
   emissive?: boolean;
+  /** Sides fade from the top colour at their upper edge to the side colour, like grass draping over dirt. */
+  sideFade?: boolean;
+  /** Two colours the top face drifts between per cell, keyed by position, so a lawn is not one flat green. */
+  variation?: [number, number];
 }
 
 export const BLOCKS: Record<BlockId, BlockDef> = {
-  grass: { colors: { top: 0x7cc14a, side: 0x8a6a3c, bottom: 0x6f5331 }, receiveShadow: true },
-  dirt: { colors: { top: 0x8a6a3c, side: 0x7d5f36, bottom: 0x6f5331 }, receiveShadow: true },
-  podzol: { colors: { top: 0x7a5f3a, side: 0x7d5f36, bottom: 0x6f5331 }, receiveShadow: true },
-  stone: { colors: { top: 0x9a9a9a, side: 0x858585, bottom: 0x6e6e6e }, castShadow: true, receiveShadow: true },
-  stone_dark: { colors: { top: 0x5a5e68, side: 0x4a4e58, bottom: 0x3a3d46 }, castShadow: true, receiveShadow: true },
-  stone_mossy: { colors: { top: 0x6f9a5a, side: 0x7d8a7a, bottom: 0x6e6e6e }, castShadow: true, receiveShadow: true },
-  gravel: { colors: { top: 0x7e7a74, side: 0x6e6a64, bottom: 0x5e5a54 }, receiveShadow: true },
-  sand: { colors: { top: 0xe6d8a6, side: 0xd8c893, bottom: 0xc9b982 }, receiveShadow: true },
-  sand_wet: { colors: { top: 0xc9b982, side: 0xb8a874, bottom: 0xa89864 }, receiveShadow: true },
-  snow: { colors: { top: 0xf4f8ff, side: 0xdde6f2, bottom: 0xb8c4d4 }, receiveShadow: true },
-  ice: { colors: { top: 0xaadcf5, side: 0x8ec6ea, bottom: 0x6fa8d6 }, receiveShadow: true },
-  log: { colors: { top: 0xb08a55, bottom: 0xb08a55, side: 0x6b4a2b }, castShadow: true, receiveShadow: true },
-  log_dark: { colors: { top: 0x8a6a45, bottom: 0x8a6a45, side: 0x4a3220 }, castShadow: true, receiveShadow: true },
-  log_palm: { colors: { top: 0xc9a06a, bottom: 0xc9a06a, side: 0x9a7246 }, castShadow: true, receiveShadow: true },
-  leaves: { colors: { top: 0x4ea83a, side: 0x3f8f2f, bottom: 0x2f6f24 }, castShadow: true, receiveShadow: true },
-  leaves_light: { colors: { top: 0x7ad24e, side: 0x62b73f, bottom: 0x3f8f2f }, castShadow: true, receiveShadow: true },
-  leaves_spruce: { colors: { top: 0x2f6b3a, side: 0x265a30, bottom: 0x1c4424 }, castShadow: true, receiveShadow: true },
+  grass: { colors: { top: 0x69a838, side: 0x8a5f3a, bottom: 0x6f4b2d }, receiveShadow: true, sideFade: true, variation: [0x579630, 0x7fbb44] },
+  dirt: { colors: { top: 0x8a5f3a, side: 0x7c5433, bottom: 0x6f4b2d }, receiveShadow: true },
+  podzol: { colors: { top: 0x6e5033, side: 0x7c5433, bottom: 0x6f4b2d }, receiveShadow: true, variation: [0x5e4229, 0x7a5a38] },
+  stone: { colors: { top: 0x8e8c86, side: 0x7d7b75, bottom: 0x66645f }, castShadow: true, receiveShadow: true, variation: [0x84827c, 0x9a988f] },
+  stone_dark: { colors: { top: 0x555962, side: 0x474b54, bottom: 0x383b43 }, castShadow: true, receiveShadow: true },
+  stone_mossy: { colors: { top: 0x6a9a4e, side: 0x7f8878, bottom: 0x66645f }, castShadow: true, receiveShadow: true, sideFade: true },
+  gravel: { colors: { top: 0x7b7772, side: 0x6c6863, bottom: 0x5c5853 }, receiveShadow: true },
+  sand: { colors: { top: 0xe3d3a0, side: 0xd4c38c, bottom: 0xc4b27a }, receiveShadow: true, variation: [0xdccb96, 0xeadcae] },
+  sand_wet: { colors: { top: 0xc6b37c, side: 0xb5a36e, bottom: 0xa5935f }, receiveShadow: true },
+  snow: { colors: { top: 0xf3f7ff, side: 0xdce5f2, bottom: 0xb6c2d3 }, receiveShadow: true, variation: [0xeef3fc, 0xf8fbff] },
+  ice: { colors: { top: 0xa6d9f4, side: 0x8bc3e8, bottom: 0x6ca5d4 }, receiveShadow: true },
+  log: { colors: { top: 0xb08a55, bottom: 0xb08a55, side: 0x654427 }, castShadow: true, receiveShadow: true },
+  log_dark: { colors: { top: 0x86663f, bottom: 0x86663f, side: 0x46301d }, castShadow: true, receiveShadow: true },
+  log_palm: { colors: { top: 0xc49c66, bottom: 0xc49c66, side: 0x946d42 }, castShadow: true, receiveShadow: true },
+  leaves: { colors: { top: 0x58a234, side: 0x4a8e2c, bottom: 0x376d22 }, castShadow: true, receiveShadow: true, variation: [0x509a30, 0x62ac3a] },
+  leaves_light: { colors: { top: 0x82c848, side: 0x6fb53e, bottom: 0x4a8e2c }, castShadow: true, receiveShadow: true, variation: [0x78c042, 0x8ed052] },
+  leaves_dark: { colors: { top: 0x3b7a27, side: 0x336b21, bottom: 0x27521a }, castShadow: true, receiveShadow: true, variation: [0x367223, 0x42842c] },
+  leaves_spruce: { colors: { top: 0x2f6b3a, side: 0x265a30, bottom: 0x1c4424 }, castShadow: true, receiveShadow: true, variation: [0x2b6436, 0x357540] },
   leaves_palm: { colors: { top: 0x6ccc4a, side: 0x4fa83a, bottom: 0x3f8f2f }, size: [1, 0.3, 1], castShadow: true, receiveShadow: true },
-  tuft: { colors: { top: 0x8fd457, side: 0x6fbd44 }, size: [0.55, 0.35, 0.55] },
+  tuft: { colors: { top: 0x86c84c, side: 0x6ab540 }, size: [0.55, 0.35, 0.55] },
   fern: { colors: { top: 0x3f9a3a, side: 0x2f7a2c }, size: [0.7, 0.5, 0.7], castShadow: true },
   stem: { colors: { top: 0x4f9a35, side: 0x4f9a35 }, size: [0.12, 0.45, 0.12] },
-  flower_white: { colors: { top: 0xfff6e8, side: 0xf2ead8, bottom: 0xffd45c }, size: [0.34, 0.2, 0.34], castShadow: true },
-  flower_pink: { colors: { top: 0xff7bb0, side: 0xf0609a, bottom: 0xffd45c }, size: [0.34, 0.2, 0.34], castShadow: true },
-  flower_yellow: { colors: { top: 0xffd64a, side: 0xf3c43a, bottom: 0xe8a81e }, size: [0.3, 0.2, 0.3], castShadow: true },
+  flower_white: { colors: { top: 0xfff8ee, side: 0xf0e8d8, bottom: 0xe8dcc4 }, size: [0.46, 0.14, 0.46], castShadow: true },
+  flower_pink: { colors: { top: 0xff7fb4, side: 0xee5f98, bottom: 0xd44e84 }, size: [0.46, 0.14, 0.46], castShadow: true },
+  flower_yellow: { colors: { top: 0xffd64a, side: 0xf3c43a, bottom: 0xe8a81e }, size: [0.32, 0.18, 0.32], castShadow: true },
+  flower_centre: { colors: { top: 0xffd24a, side: 0xf0b83a }, size: [0.18, 0.1, 0.18] },
   mushroom_stem: { colors: { top: 0xf0e6d2, side: 0xe0d4bc }, size: [0.22, 0.45, 0.22] },
   mushroom_red: { colors: { top: 0xe0413a, side: 0xc8332c, bottom: 0xf5ead8 }, size: [0.55, 0.28, 0.55], castShadow: true },
   mushroom_brown: { colors: { top: 0xa0724a, side: 0x8a6040, bottom: 0xf5ead8 }, size: [0.45, 0.24, 0.45], castShadow: true },
@@ -93,7 +102,26 @@ export const BLOCKS: Record<BlockId, BlockDef> = {
 
 export const BLOCK_IDS = Object.keys(BLOCKS) as BlockId[];
 
-function faceColor(def: BlockDef, face: BedrockFaceName): number {
+/** A stable number in [0, 1) for a cell, so a block looks the same on every build and every device. */
+export function hashCell(x: number, z: number, salt = 0): number {
+  let h = (Math.imul(x | 0, 374761393) + Math.imul(z | 0, 668265263) + Math.imul(salt | 0, 2246822519)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+/**
+ * The top colour of a block at a cell: the face colour, or for a block with
+ * `variation` a blend of its two shades keyed by position.
+ */
+export function topColorAt(id: BlockId, x: number, z: number, out = new THREE.Color()): THREE.Color {
+  const def = BLOCKS[id];
+  if (!def.variation) return out.setHex(def.colors.top);
+  const t = hashCell(Math.floor(x), Math.floor(z), id.length);
+  return out.setHex(def.variation[0]).lerp(new THREE.Color(def.variation[1]), t);
+}
+
+export function faceColor(def: BlockDef, face: BedrockFaceName): number {
   const c = def.colors;
   const explicit = c[face];
   if (explicit !== undefined) return explicit;

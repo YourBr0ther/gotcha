@@ -45,7 +45,7 @@ export function buildPond(): DioramaDef {
     [13, -8],
     [12, -14],
   ];
-  for (const [tx, tz] of trees) s.tree(tx, tz, groundHeight(tx, tz), { leaves: ["leaves", "leaves_light"] });
+  for (const [tx, tz] of trees) s.tree(tx, tz, groundHeight(tx, tz), { radius: s.rand() < 0.5 ? 3 : 2 });
 
   // Lily pads drift on the water; reeds line the edge on both sides.
   for (let i = 0; i < 26; i++) {
@@ -103,7 +103,7 @@ export function buildPond(): DioramaDef {
     id: "pond",
     spots,
     spawn: spots.play_1,
-    lights: { sun: 1, hemi: 1, fogNear: 12, fogFar: 34 },
+    lights: { sun: 1, hemi: 1, fogNear: 20, fogFar: 60 },
     backdrop: { style: "reeds", sky: 0x8fd0ff, horizon: 0xd0ecd0, silhouette: 0x3d7a3a, z: -24, height: 14 },
     framing: { subject: SUBJECT },
     particles: "none",

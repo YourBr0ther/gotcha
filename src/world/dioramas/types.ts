@@ -20,6 +20,20 @@ export interface WaterVolume {
   d: number;
   y: number;
   depth: number;
+  /** False for water a creature must not enter, like the stream above a fall. Defaults to true. */
+  swimmable?: boolean;
+}
+
+/**
+ * A sheet of water falling down the face at `z` (the south face of the
+ * blocks in row `z - 1`), spanning `x` to `x + w`, from `top` to `bottom`.
+ */
+export interface Falls {
+  x: number;
+  z: number;
+  w: number;
+  top: number;
+  bottom: number;
 }
 
 /** A box of air a flier may hover in, above the ground between `yMin` and `yMax`. */
@@ -95,6 +109,7 @@ export interface DioramaDef {
   id: string;
   blocks: BlockInstance[];
   water: WaterVolume[];
+  falls: Falls[];
   air: AirVolume[];
   spots: Record<string, Spot>;
   /** Walkable ground. */

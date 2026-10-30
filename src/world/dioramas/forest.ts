@@ -40,7 +40,7 @@ export function buildForest(): DioramaDef {
       const tall = tz < -12 || s.rand() < 0.4;
       s.tree(tx, tz, groundHeight(tx, tz), {
         trunk: s.rand() < 0.35 ? "log_dark" : "log",
-        leaves: ["leaves", "leaves", "leaves_light"],
+        leaves: ["leaves_dark", "leaves", "leaves_light"],
         height: tall ? 7 + Math.floor(s.rand() * 2) : 5 + Math.floor(s.rand() * 2),
         radius: tall ? 3 : 2,
       });
@@ -63,10 +63,15 @@ export function buildForest(): DioramaDef {
     [-3.5, -10.6, "mushroom_red"],
   ];
   for (const [mx, mz, cap] of mushrooms) {
-    s.block("mushroom_stem", mx, 0, mz);
-    s.block(cap, mx, 0.4, mz);
+    s.mushroom(mx, mz, cap);
     s.walkable(Math.floor(mx), Math.floor(mz), false);
   }
+  // A mossy boulder at the right of the clearing and a few white flowers in the light.
+  s.block("stone_mossy", 5, 0, -7, { tint: 0xe0e0e0 });
+  s.block("stone", 5, 1, -7, { tint: 0xd0d0d0 });
+  s.walkable(5, -7, false);
+  s.block("stone_mossy", 6, 0, -8);
+  s.walkable(6, -8, false);
 
   const spots: Record<string, Spot> = {
     play_1: { x: 0.5, z: 1.5, facing: Math.PI - 0.4 },
@@ -81,11 +86,14 @@ export function buildForest(): DioramaDef {
 
   s.scatter(0.2, (x, z) => {
     const r = s.rand();
-    if (r < 0.55) {
+    if (r < 0.5) {
       s.block("fern", x + 0.15 + s.rand() * 0.7, 0, z + 0.15 + s.rand() * 0.7, { tint: mixTint(0.85 + s.rand() * 0.25) });
       return true;
     }
-    s.block("tuft", x + 0.2 + s.rand() * 0.6, 0, z + 0.2 + s.rand() * 0.6, { tint: mixTint(0.8 + s.rand() * 0.2) });
+    if (r < 0.62 && inClearing(x, z)) {
+      s.flower(x + 0.25 + s.rand() * 0.5, z + 0.25 + s.rand() * 0.5, s.rand() < 0.7 ? "flower_white" : "flower_yellow");
+      return true;
+    }
     return false;
   });
 
@@ -93,8 +101,8 @@ export function buildForest(): DioramaDef {
     id: "forest",
     spots,
     spawn: spots.play_1,
-    lights: { sun: 0.85, hemi: 0.75, fogNear: 10, fogFar: 28 },
-    backdrop: { style: "trees", sky: 0x7fc4ff, horizon: 0xa9d8a8, silhouette: 0x1f4a24, z: -24, height: 16 },
+    lights: { sun: 0.85, hemi: 0.8, fogNear: 16, fogFar: 50 },
+    backdrop: { style: "trees", sky: 0x7fc4ff, horizon: 0xa9d8a8, silhouette: 0x1f4a24, z: -25, height: 18 },
     framing: { subject: SUBJECT },
     particles: "none",
   });
