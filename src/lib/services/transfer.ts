@@ -241,7 +241,9 @@ export interface ImportResult {
  */
 async function claimReleased(tx: DbOrTx, existing: PokemonRow, pokemon: CpkmnPokemon, trainer: TrainerRow, verification: Verification, now: string): Promise<{ outcome: ImportOutcome; tradeNonce: string | null }> {
   if (existing.trainerId === trainer.id) return { outcome: "restored", tradeNonce: null };
-  if (pokemon.identity.currentTrainer.trainerId === trainer.id && verification === "verified") return { outcome: "restored", tradeNonce: null };
+  // Only server-side state decides a restore. The file's currentTrainer is
+  // whatever the exporter wrote, and a stale backup from before a trade must
+  // not undo that trade.
 
   const nonce = pokemon.trade?.nonce;
   const [offer] = nonce

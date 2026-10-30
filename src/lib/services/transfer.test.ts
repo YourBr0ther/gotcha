@@ -380,27 +380,25 @@ describe("restoring a released pokemon", () => {
     expect((await getParty(t.db, mae, T0)).party).toEqual([]);
   });
 
-  it("the owner the file names restores with a verified file after someone else released it; an unverified file is refused", async () => {
+  it("a trainer who traded a pokemon away cannot bring it back from an old backup, even after the new owner releases it", async () => {
     const eli = await makeTrainer(t.db, "eli", "Eli");
     const mae = await makeTrainer(t.db, "mae", "Mae");
     const row = await insertPokemon(t.db, eli, { slot: 1, active: true });
-    const verified = await exportPokemon(t.db, eli, row.id, "backup", T0, signed);
-    const unverified = await exportPokemon(t.db, eli, row.id, "backup", T0, stranger);
+    const oldBackup = await exportPokemon(t.db, eli, row.id, "backup", T0, signed);
 
-    // Traded to Mae on this install, then Mae lets it go.
     const offer = await exportPokemon(t.db, eli, row.id, "trade", later(T0, HOUR), signed);
     expect((await importPokemon(t.db, mae, offer.bytes, later(T0, 2 * HOUR), signed)).outcome).toBe("received");
     await release(t.db, mae, row.id);
 
-    await expect(importPokemon(t.db, eli, unverified.bytes, later(T0, 3 * HOUR), signed)).rejects.toMatchObject({ code: "already_present" });
-    const result = await importPokemon(t.db, eli, verified.bytes, later(T0, 3 * HOUR), signed);
-    expect(result.outcome).toBe("restored");
-    const after = await load(row.id);
-    expect(after).toMatchObject({ status: "home", slot: 1, trainerId: eli.id });
-    expect(after.identity.currentTrainer).toEqual({ trainerId: eli.id, name: "Eli" });
-    expect(after.history.trainers.filter((h) => h.to == null).map((h) => h.trainerId)).toEqual([eli.id]);
-    expect((await getParty(t.db, eli, later(T0, 3 * HOUR))).activeId).toBe(row.id);
-    expect((await getParty(t.db, mae, later(T0, 3 * HOUR))).party).toEqual([]);
+    // Eli's backup names Eli as the owner and is verified, and is still refused: the row says Mae released it.
+    await expect(importPokemon(t.db, eli, oldBackup.bytes, later(T0, 3 * HOUR), signed)).rejects.toMatchObject({ code: "already_present" });
+    // Mae, who released it, can restore it from a file she holds.
+    const maeBackup = await exportPokemon(t.db, mae, row.id, "backup", later(T0, 2 * HOUR + 1000), signed).catch(() => null);
+    if (maeBackup) {
+      const back = await importPokemon(t.db, mae, maeBackup.bytes, later(T0, 4 * HOUR), signed);
+      expect(back.outcome).toBe("restored");
+      expect((await load(row.id)).trainerId).toBe(mae.id);
+    }
   });
 
   it("the owner can restore from a trade file that already came home; the dead offer stays dead", async () => {

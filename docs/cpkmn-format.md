@@ -279,11 +279,10 @@ install calling back with the nonce, if both installs are reachable. If they
 are not, the sender confirms manually and the row is released.
 
 A released pokemon keeps its row, with status `released`, so its id is still
-known to the install. Importing a file with that id restores it when the
-importer is the trainer who released it (any file: the row is theirs) or the
-trainer the file's `currentTrainer` names (a verified file only: the
-signature is what stops a hand-built file from claiming someone else's
-release). The restore writes the file's members over the row, sets
+known to the install. Importing a file with that id restores it only when the
+importer is the trainer who released it on this install. The file's
+`currentTrainer` is never consulted: it is whatever the exporter wrote, and a
+backup taken before a trade must not undo that trade. The restore writes the file's members over the row, sets
 `lastTickAt` to the import time, places the pokemon in the first free party
 slot or else the PC, and adds `{ "kind": "restored" }` to
 `history.milestones`. Anyone else is refused unless the file carries a live
