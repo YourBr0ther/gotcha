@@ -28,10 +28,10 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 - [x] Care actions: feed, play, groom, rest, wake, medicine, discipline, pet, with care mistakes
 - [x] Sickness derived from neglect, cured by medicine or rest
 - [x] Store, bag, Bytes ledger, daily stipend
-- [ ] Home screen from the concept render: floating HUD, action buttons, care sheets, dialogue box, photo mode
-- [ ] Party, PC, Store, Journal, Pokedex, Neighborhood screens
+- [x] Home screen from the concept render: floating HUD, action buttons, care sheets, dialogue box, photo mode
+- [x] Party, PC, Store, Journal, Pokedex, Neighborhood screens
 - [ ] Evolution prompt with the trainer's yes or no
-- [ ] PWA install on iOS and Android
+- [x] PWA manifest, icons and service worker (install on a real phone still to be checked)
 
 ## Milestone 4, brain
 
@@ -41,14 +41,15 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 - [x] Generated personalities with bounded decay multipliers
 - [x] Daily call and token budgets per pokemon
 - [x] Transcribe route with a browser speech fallback
-- [ ] Voice recording in the app and the microphone button
+- [x] Voice recording in the app and the microphone button
 - [ ] A cheaper tick model and a better talk model chosen per call
 
 ## Milestone 5, family
 
 - [x] Neighborhood API: every trainer's active pokemon
 - [x] Trades through `.cpkmn` files, verified against published install keys
-- [ ] Neighborhood screen and visiting a friend's diorama
+- [x] Neighborhood screen
+- [ ] Visiting a friend's diorama
 - [ ] Key exchange between installs without copying JSON by hand
 - [ ] Gifts and eggs as a second way to get pokemon
 
