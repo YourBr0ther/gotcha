@@ -25,8 +25,8 @@ interface Params {
   /** A species from .cobblemon-cache, or null for the synthetic cube. */
   species: string | null;
   aspects: string[];
-  /** demo=0 holds the creature at the spawn spot, for framing checks. */
-  demo: boolean;
+  /** demo=0 holds the creature at the spawn spot and cycles emotes and cries; demo=hold holds it still so a script can drive it. */
+  demo: "route" | "spot" | "hold";
   diorama: DioramaId;
   ambient: boolean;
   depth: boolean;
@@ -41,7 +41,7 @@ function readParams(): Params {
     hour: hour !== null ? parseFloat(hour) : null,
     species: q.get("species"),
     aspects,
-    demo: q.get("demo") !== "0",
+    demo: q.get("demo") === "0" ? "spot" : q.get("demo") === "hold" ? "hold" : "route",
     diorama: isDioramaId(q.get("diorama") ?? "") ? (q.get("diorama") as DioramaId) : "meadow",
     ambient: q.get("ambient") !== "0",
     depth: q.get("depth") !== "0",
@@ -58,6 +58,9 @@ export default function DevWorld() {
   const onReady = useCallback(
     (handle: WorldHandle) => {
       handleRef.current = handle;
+      if (process.env.NODE_ENV !== "production") {
+        (window as unknown as { __worldHandle?: WorldHandle }).__worldHandle = handle;
+      }
       handle.setTimeOfDay(params.hour ?? localHours());
       handle.setAmbient(params.ambient);
       handle.setDiorama(params.diorama);
@@ -81,7 +84,8 @@ export default function DevWorld() {
       await wait(1500, alive);
       let i = 0;
       let emotes = 0;
-      if (!params.demo) {
+      if (params.demo === "hold") return;
+      if (params.demo === "spot") {
         while (alive.current) {
           handle.emote(EMOTES[emotes++ % EMOTES.length]);
           await wait(3000, alive);
