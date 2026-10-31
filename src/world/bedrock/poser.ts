@@ -329,7 +329,8 @@ export function readPoser(poser: PoserFile, availableClips?: Iterable<string>): 
     if (!available) return undefined;
     const exact = group ? `${group}.${job}` : undefined;
     if (exact && available.has(exact)) return exact;
-    for (const candidate of available) if (candidate.endsWith(`.${job}`) && (!group || !candidate.startsWith("animation."))) return candidate;
+    // Cobblemon keeps many cries in a second file under a `dummy` group.
+    for (const candidate of available) if (candidate.endsWith(`.${job}`)) return candidate;
     return undefined;
   };
   const cry = oneShot(["cry", "cryAnimation"]) ?? byName("cry");

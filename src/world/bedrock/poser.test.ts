@@ -160,6 +160,10 @@ describe("clips the poser leaves out", () => {
     expect(map.faint).toBe("animation.absol.faint");
     expect(map.poses.sleep).toEqual({ clips: ["animation.absol.sleep"], procedural: [] });
   });
+  it("takes a cry from another group when the idle's group has none (the dummy file)", () => {
+    const map = readPoser(poser, ["animation.absol.ground_idle", "animation.dummy.cry"]);
+    expect(map.cry).toBe("animation.dummy.cry");
+  });
   it("keeps what the poser names and stays empty when no clip fits", () => {
     const named = { ...poser, animations: { cry: "q.bedrock_stateful('absol', 'battle_cry')" } };
     const map = readPoser(named, ["animation.absol.ground_idle", "animation.absol.battle_cry", "animation.absol.cry"]);

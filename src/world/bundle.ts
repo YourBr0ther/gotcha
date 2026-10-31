@@ -191,8 +191,14 @@ export function rememberVersion(species: string, version: string): void {
   }
 }
 
-/** `cobblemon:eevee_male.geo` -> `eevee_male`; a texture path -> its basename. */
+/**
+ * `cobblemon:eevee_male.geo` -> `eevee_male`; a jar texture path -> its
+ * basename; a cache texture path keeps what follows `textures/`, since
+ * Ponyta's flame frames sit in `textures/fire/normal/1.png` and a basename
+ * alone would point at a file that does not exist.
+ */
 function key(id: string): string {
+  if (id.startsWith("textures/")) return id.slice("textures/".length);
   const name = id.slice(id.lastIndexOf("/") + 1).replace(/^cobblemon:/, "");
   return name.replace(/\.geo$/, "");
 }
@@ -241,6 +247,13 @@ export interface PickedFiles {
   texture: string;
   emissive?: string;
   emissiveFrames?: { files: string[]; fps: number };
+  /**
+   * The species' other animation files. Cobblemon keeps 314 species' cries
+   * in a second file (a `dummy` group), and some forms share a file, so a
+   * clip the poser or the by-name fallback wants can live outside the
+   * poser's own group.
+   */
+  extraAnimations: string[];
 }
 
 /** `models/eevee_male.geo.json` -> `eevee_male`, the key the manifest maps use. */
@@ -271,10 +284,20 @@ export function pickFromManifest(manifest: Manifest, species: string, aspects: s
     model: modelFile,
     poser: poserEntry,
     animations: animEntry.file,
+    extraAnimations: Object.values(manifest.animations).map((a) => a.file).filter((f) => f !== animEntry.file),
     texture: `textures/${picked.texture || `${species}.png`}`,
     emissive: picked.emissive ? `textures/${picked.emissive}` : undefined,
     emissiveFrames: picked.emissiveFrames ? { files: picked.emissiveFrames.keys.map((k) => `textures/${k}`), fps: picked.emissiveFrames.fps } : undefined,
   };
+}
+
+/** One animation file holding every clip of several; the poser's own file wins a name clash. */
+export function mergeAnimationFiles(own: BedrockAnimationFile, extra: BedrockAnimationFile[]): BedrockAnimationFile {
+  if (extra.length === 0) return own;
+  const animations: BedrockAnimationFile["animations"] = {};
+  for (const file of extra) Object.assign(animations, file.animations);
+  Object.assign(animations, own.animations);
+  return { ...own, animations };
 }
 
 /** Build the versioned URL for one file of a species. */
@@ -359,12 +382,14 @@ async function loadBundle(species: string, aspects: string[], label: string, wit
 
   const speciesFile = manifest.files?.species;
   const t2 = now();
-  const [geometry, animations, poserJson, speciesJson] = await Promise.all([
+  const [geometry, ownAnimations, poserJson, speciesJson, ...extraAnimations] = await Promise.all([
     getJson<BedrockGeometryFile>(url(picked.model)),
     getJson<BedrockAnimationFile>(url(picked.animations)),
     picked.poser.file ? getJson<PoserFile>(url(picked.poser.file)) : Promise.resolve(poserFromEntry(picked.poser)),
     speciesFile ? getJson<{ behaviour?: SpeciesBehaviour; baseScale?: number }>(url(speciesFile)) : Promise.resolve(null),
+    ...picked.extraAnimations.map((f) => getJson<BedrockAnimationFile>(url(f))),
   ]);
+  const animations = mergeAnimationFiles(ownAnimations, extraAnimations);
   measure(`${label}:files`, t2);
 
   // Effects, only for a species whose clips fire any, and only once the

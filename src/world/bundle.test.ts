@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assetUrl, pickFromManifest, poserFromEntry, rememberedVersion, rememberVersion, resolveVariation } from "./bundle";
+import { assetUrl, pickFromManifest, poserFromEntry, rememberedVersion, rememberVersion, resolveVariation, mergeAnimationFiles } from "./bundle";
 
 describe("bundle loader", () => {
   const resolvers = [
@@ -16,6 +16,20 @@ describe("bundle loader", () => {
   it("applies every matching variation in order, later overriding earlier", () => {
     expect(resolveVariation(resolvers, [])).toEqual({ model: "eevee_male", poser: "eevee", texture: "eevee.png" });
     expect(resolveVariation(resolvers, ["shiny", "female"])).toEqual({ model: "eevee_female", poser: "eevee", texture: "eevee_shiny.png" });
+  });
+
+  it("keeps the folder of a cache texture path (Ponyta's flame frames)", () => {
+    const ponyta = [{ variations: [{ aspects: [], model: "ponyta", poser: "ponyta", texture: "textures/ponyta.png", layers: [{ emissive: true, texture: { fps: 10, frames: ["textures/fire/normal/1.png", "textures/fire/normal/2.png"] } }] }] }];
+    expect(resolveVariation(ponyta, []).emissiveFrames).toEqual({ keys: ["fire/normal/1.png", "fire/normal/2.png"], fps: 10 });
+  });
+
+  it("merges the species' other animation files under the poser's own", () => {
+    const own = { format_version: "1.8.0", animations: { "animation.tentacool.ground_idle": { loop: true }, "animation.dummy.cry": { animation_length: 2 } } };
+    const extra = [{ format_version: "1.8.0", animations: { "animation.dummy.cry": { animation_length: 1 }, "animation.dummy.faint": {} } }];
+    const merged = mergeAnimationFiles(own as never, extra as never);
+    expect(Object.keys(merged.animations).sort()).toEqual(["animation.dummy.cry", "animation.dummy.faint", "animation.tentacool.ground_idle"]);
+    expect(merged.animations["animation.dummy.cry"].animation_length).toBe(2);
+    expect(mergeAnimationFiles(own as never, [])).toBe(own);
   });
 
   it("picks up an emissive layer for its aspect", () => {

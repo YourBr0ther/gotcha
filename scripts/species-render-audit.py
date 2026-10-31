@@ -135,6 +135,51 @@ def head(url):
         return getattr(e, "code", None) or str(e), None
 
 
+def wait_visible(page, timeout=45):
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if page.evaluate("() => performance.getEntriesByName('world:creature-visible').length > 0 && !!window.__creatureRig"):
+            return True
+        if page.evaluate("() => !!(window.__worldStats && window.__worldStats.extra && window.__worldStats.extra.startsWith('error'))"):
+            return False
+        time.sleep(0.15)
+    return False
+
+
+def reshoot_shard(shard, workers, species, out, base, viewport, crop):
+    """Gallery shots only: idle, then sleep where it stands, then a walk shot a moment after it sets off, all in the crop."""
+    mine = [s for i, s in enumerate(species) if i % workers == shard]
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(args=["--enable-unsafe-swiftshader"])
+        page = browser.new_context(viewport=viewport, device_scale_factor=1).new_page()
+        for n, sp in enumerate(mine):
+            t0 = time.time()
+            try:
+                jpath = f"{out}/json/{sp}.json"
+                rec = json.load(open(jpath)) if os.path.exists(jpath) else {}
+                diorama = "&diorama=pond" if rec.get("diorama") == "pond" else ""
+                page.goto(f"{base}/world?species={sp}&demo=hold&ambient=0&depth=0&hour=12&debug=0{diorama}", wait_until="domcontentloaded", timeout=60000)
+                if not wait_visible(page):
+                    print(f"[{shard}] {sp} not visible", flush=True)
+                    continue
+                time.sleep(0.8)
+                tall = page.evaluate("() => window.__creatureRig.height") >= 2.2
+                shot = None if tall else crop
+                page.screenshot(path=f"{out}/img/{sp}-idle.png", clip=shot)
+                page.evaluate("() => window.__worldHandle.play('sleep')")
+                time.sleep(1.6)
+                page.screenshot(path=f"{out}/img/{sp}-sleep.png", clip=shot)
+                page.evaluate("() => window.__worldHandle.play('idle')")
+                time.sleep(0.5)
+                page.evaluate(WALK)
+                time.sleep(0.6)
+                page.screenshot(path=f"{out}/img/{sp}-walk.png", clip=shot)
+                print(f"[{shard}] {n + 1}/{len(mine)} {sp} shot {round(time.time() - t0, 1)}s", flush=True)
+            except Exception as ex:  # noqa: BLE001
+                print(f"[{shard}] {sp} FAILED {str(ex)[:120]}", flush=True)
+        browser.close()
+
+
 def run_shard(shard, workers, species, out, base, viewport, crop, force=False):
     mine = [s for i, s in enumerate(species) if i % workers == shard]
     with sync_playwright() as pw:
@@ -258,6 +303,7 @@ def main():
     ap.add_argument("--only", default="")
     ap.add_argument("--cache", default=".cobblemon-cache")
     ap.add_argument("--force", action="store_true", help="redo species that already have a json file")
+    ap.add_argument("--reshoot", action="store_true", help="only retake the idle, sleep and walk shots; keep the json")
     args = ap.parse_args()
     os.makedirs(f"{args.out}/json", exist_ok=True)
     os.makedirs(f"{args.out}/img", exist_ok=True)
@@ -268,7 +314,10 @@ def main():
             species = sorted(json.load(fh)["species"].keys())
     viewport = {"width": 360, "height": 640}
     crop = {"x": 30, "y": 150, "width": 300, "height": 360}
-    procs = [Process(target=run_shard, args=(k, args.workers, species, args.out, args.base, viewport, crop, args.force)) for k in range(args.workers)]
+    if args.reshoot:
+        procs = [Process(target=reshoot_shard, args=(k, args.workers, species, args.out, args.base, viewport, crop)) for k in range(args.workers)]
+    else:
+        procs = [Process(target=run_shard, args=(k, args.workers, species, args.out, args.base, viewport, crop, args.force)) for k in range(args.workers)]
     for p in procs:
         p.start()
     for p in procs:
