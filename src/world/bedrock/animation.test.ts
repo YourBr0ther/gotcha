@@ -135,6 +135,30 @@ describe("buildClip", () => {
     const { clip } = buildClip("x", { bones: { head: { rotation: { "0.0": [0, 0, 0], "1.25": [1, 1, 1] } } } });
     expect(clip.duration).toBeCloseTo(1.25);
   });
+
+  it("loops a lengthless Molang idle over a whole number of its periods instead of one sample", () => {
+    // Cobblemon's breathing idles: sine waves over anim_time * 90 * k degrees, no animation_length.
+    const breathe = { loop: true, bones: { body: { rotation: ["2.5-math.cos(q.anim_time*90*2-120)*2", 0, "0-math.cos(q.anim_time*90*2/2-120)*1"] } } };
+    const { clip } = buildClip("x", breathe as never);
+    // k = 2 has a 2 s period, k = 1 (the /2 term) a 4 s period: 4 s is the first seamless loop.
+    expect(clip.duration).toBe(4);
+    const rx = track(clip, "body.rotation[x]");
+    expect(rx.times.length).toBe(4 * SAMPLE_HZ + 1);
+    // The wave actually moves: the value a quarter period in differs from the start.
+    expect(Math.abs(rx.values[10] - rx.values[0])).toBeGreaterThan(0.01);
+    // And it closes: the last sample equals the first.
+    expect(rx.values[rx.values.length - 1]).toBeCloseTo(rx.values[0], 4);
+  });
+
+  it("leaves a lengthless one-shot Molang clip at its keyframe length", () => {
+    const { clip } = buildClip("x", { loop: false, bones: { body: { rotation: ["math.sin(q.anim_time*90)", 0, 0] } } } as never);
+    expect(clip.duration).toBeCloseTo(1 / SAMPLE_HZ);
+  });
+
+  it("falls back to the longest candidate when no loop closes", () => {
+    const { clip } = buildClip("x", { loop: true, bones: { body: { rotation: ["math.sin(q.anim_time*90*0.7)", 0, 0] } } } as never);
+    expect(clip.duration).toBe(16);
+  });
 });
 
 describe("clips driving the synthetic cube", () => {

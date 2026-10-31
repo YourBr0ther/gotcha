@@ -222,6 +222,47 @@ export function animationLength(anim: BedrockAnimation): number {
   return Math.max(max, 1 / SAMPLE_HZ);
 }
 
+/**
+ * Loop lengths tried, in seconds, for a looping clip that gives no length
+ * and animates with `q.anim_time` alone. Cobblemon's idle clips are sine
+ * waves over `anim_time * 90 * k` degrees, so their periods are 4 / k
+ * seconds and one of these holds a whole number of them for every k the
+ * pack uses (1, 2, 4, 1.5, 3, 0.5, 8, 0.75, 2.5, 0.25).
+ */
+const LOOP_CANDIDATES = [1, 2, 4, 8, 16];
+const LOOP_TOLERANCE = 1e-3;
+
+type ParsedChannel = { kind: ChannelKind; frames: Keyframe[] };
+
+/**
+ * A looping clip without `animation_length` whose channels are pure Molang
+ * has no keyframe past 0, so the length above collapses to one sample and
+ * `q.anim_time` never leaves zero: the breathing freezes. In the game such
+ * a clip runs forever. Here it loops over the shortest candidate at which
+ * every channel returns to its starting value and slope, so the seam is
+ * invisible, or over the longest candidate when none fits (random or
+ * non-periodic expressions).
+ */
+export function loopLength(anim: BedrockAnimation, channels: ParsedChannel[]): number {
+  const length = animationLength(anim);
+  if (anim.animation_length && anim.animation_length > 0) return length;
+  if (anim.loop !== true) return length;
+  const sampled = channels.filter((c) => channelNeedsSampling(c.frames));
+  if (sampled.length === 0) return length;
+  const step = 1 / SAMPLE_HZ;
+  const same = (a: Vec3, b: Vec3) => a.every((v, i) => Math.abs(v - b[i]) < LOOP_TOLERANCE);
+  for (const candidate of LOOP_CANDIDATES) {
+    if (candidate < length) continue;
+    const seamless = sampled.every(
+      (c) =>
+        same(sampleChannel(c.frames, 0), sampleChannel(c.frames, candidate)) &&
+        same(sampleChannel(c.frames, step), sampleChannel(c.frames, candidate + step)),
+    );
+    if (seamless) return candidate;
+  }
+  return Math.max(length, LOOP_CANDIDATES[LOOP_CANDIDATES.length - 1]);
+}
+
 export function loopMode(anim: BedrockAnimation): LoopMode {
   if (anim.loop === true) return "repeat";
   if (anim.loop === "hold_on_last_frame") return "hold";
@@ -229,11 +270,17 @@ export function loopMode(anim: BedrockAnimation): LoopMode {
 }
 
 export function buildClip(name: string, anim: BedrockAnimation): BedrockClip {
-  const length = animationLength(anim);
-  const tracks: THREE.KeyframeTrack[] = [];
+  const parsed: Array<{ bone: string } & ParsedChannel> = [];
   for (const [bone, channels] of Object.entries(anim.bones ?? {})) {
-    if (channels.rotation !== undefined) {
-      const s = sampleFrames(parseChannel(channels.rotation, "rotation"), "rotation", length);
+    if (channels.rotation !== undefined) parsed.push({ bone, kind: "rotation", frames: parseChannel(channels.rotation, "rotation") });
+    if (channels.position !== undefined) parsed.push({ bone, kind: "position", frames: parseChannel(channels.position, "position") });
+    if (channels.scale !== undefined) parsed.push({ bone, kind: "scale", frames: parseChannel(channels.scale, "scale") });
+  }
+  const length = loopLength(anim, parsed);
+  const tracks: THREE.KeyframeTrack[] = [];
+  for (const { bone, kind, frames } of parsed) {
+    const s = sampleFrames(frames, kind, length);
+    if (kind === "rotation") {
       (["x", "y", "z"] as const).forEach((axis, i) => {
         tracks.push(
           new THREE.NumberKeyframeTrack(
@@ -243,14 +290,8 @@ export function buildClip(name: string, anim: BedrockAnimation): BedrockClip {
           ),
         );
       });
-    }
-    if (channels.position !== undefined) {
-      const s = sampleFrames(parseChannel(channels.position, "position"), "position", length);
-      tracks.push(new THREE.VectorKeyframeTrack(`${bone}.position`, s.times, s.values.flat()));
-    }
-    if (channels.scale !== undefined) {
-      const s = sampleFrames(parseChannel(channels.scale, "scale"), "scale", length);
-      tracks.push(new THREE.VectorKeyframeTrack(`${bone}.scale`, s.times, s.values.flat()));
+    } else {
+      tracks.push(new THREE.VectorKeyframeTrack(`${bone}.${kind}`, s.times, s.values.flat()));
     }
   }
   const clip = new THREE.AnimationClip(name, length, tracks, THREE.AdditiveAnimationBlendMode);
