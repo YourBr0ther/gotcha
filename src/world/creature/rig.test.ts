@@ -51,9 +51,14 @@ function loadFixture(withSleep: boolean, options: FixtureOptions = {}): LoadedCr
   if (fx === "faint" || fx === "both") {
     animations.animations["animation.cube.faint"].particle_effects = { "0.1": [{ effect: "cube_sparks" }, { effect: "cube_sparks" }], "0.3": "cobblemon:cube_handler" };
   }
-  const clips = createClipLibrary(animations);
   const poserFile = JSON.parse(JSON.stringify(cubePoser)) as PoserFile;
-  if (!withSleep) delete poserFile.poses?.sleeping;
+  // A species without a sleep clip: drop the pose and the clip, since a
+  // clip named sleep would be picked up by name even with the pose gone.
+  if (!withSleep) {
+    delete poserFile.poses?.sleeping;
+    delete animations.animations["animation.cube.sleep"];
+  }
+  const clips = createClipLibrary(animations);
   const poser = readPoser(poserFile, clips.names());
   return {
     model,

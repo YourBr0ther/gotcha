@@ -147,6 +147,28 @@ describe("readPoser", () => {
   });
 });
 
+describe("clips the poser leaves out", () => {
+  const poser: PoserFile = {
+    poses: {
+      standing: { animations: ["q.bedrock('absol', 'ground_idle')"], poseTypes: ["STAND"] },
+      walking: { animations: ["q.bedrock('absol', 'ground_walk')"], poseTypes: ["WALK"] },
+    },
+  };
+  it("finds cry, faint and sleep clips by name in the idle clip's group", () => {
+    const map = readPoser(poser, ["animation.absol.ground_idle", "animation.absol.ground_walk", "animation.absol.cry", "animation.absol.faint", "animation.absol.sleep", "animation.absol_mega.sleep"]);
+    expect(map.cry).toBe("animation.absol.cry");
+    expect(map.faint).toBe("animation.absol.faint");
+    expect(map.poses.sleep).toEqual({ clips: ["animation.absol.sleep"], procedural: [] });
+  });
+  it("keeps what the poser names and stays empty when no clip fits", () => {
+    const named = { ...poser, animations: { cry: "q.bedrock_stateful('absol', 'battle_cry')" } };
+    const map = readPoser(named, ["animation.absol.ground_idle", "animation.absol.battle_cry", "animation.absol.cry"]);
+    expect(map.cry).toBe("animation.absol.battle_cry");
+    expect(map.faint).toBeUndefined();
+    expect(map.poses.sleep).toBeUndefined();
+  });
+});
+
 describe("battle poses", () => {
   it("prefers the overworld pose when a battle pose shares the STAND type, even when listed first", () => {
     const poser = {

@@ -27,6 +27,8 @@ export interface PokemonBundle {
     shiny?: string;
     /** Glow layer (alpha eyes, cave species); drawn as emissive over the base. */
     emissive?: string;
+    /** An animated glow layer (Charmander's tail flame, Slugma's lava): every frame's URL and the rate Cobblemon flips them at. `emissive` is then the first frame. */
+    emissiveFrames?: { urls: string[]; fps: number };
   };
   sounds?: {
     cry?: string;

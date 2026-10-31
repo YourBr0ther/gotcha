@@ -40,7 +40,7 @@ import { measure, now } from "./perf";
  */
 type ManifestPoser = PoserFile & { file?: string; synthesized?: boolean };
 
-/** Cobblemon flips through `frames` at `fps` (Slugma's lava); the renderer shows the first frame. */
+/** Cobblemon flips through `frames` at `fps` (Slugma's lava); the rig flips an emissive layer's frames the same way. */
 export interface AnimatedTexture {
   fps: number;
   frames: string[];
@@ -203,6 +203,8 @@ export interface ResolvedVariation {
   texture: string;
   /** Basename of the first emissive layer whose aspects all match, if any. */
   emissive?: string;
+  /** When that layer is animated: every frame's basename and the frame rate. */
+  emissiveFrames?: { keys: string[]; fps: number };
 }
 
 /**
@@ -221,7 +223,10 @@ export function resolveVariation(resolvers: Resolver[], aspects: string[]): Reso
       if (texture) out.texture = key(texture);
       for (const layer of v.layers ?? []) {
         const layerTexture = firstFrame(layer.texture);
-        if (layer.emissive && layerTexture) out.emissive = key(layerTexture);
+        if (!layer.emissive || !layerTexture) continue;
+        out.emissive = key(layerTexture);
+        const animated = layer.texture !== undefined && typeof layer.texture !== "string" && layer.texture.frames.length > 1;
+        out.emissiveFrames = animated ? { keys: (layer.texture as AnimatedTexture).frames.map(key), fps: (layer.texture as AnimatedTexture).fps } : undefined;
       }
     }
   }
@@ -235,6 +240,7 @@ export interface PickedFiles {
   animations: string;
   texture: string;
   emissive?: string;
+  emissiveFrames?: { files: string[]; fps: number };
 }
 
 /** `models/eevee_male.geo.json` -> `eevee_male`, the key the manifest maps use. */
@@ -267,6 +273,7 @@ export function pickFromManifest(manifest: Manifest, species: string, aspects: s
     animations: animEntry.file,
     texture: `textures/${picked.texture || `${species}.png`}`,
     emissive: picked.emissive ? `textures/${picked.emissive}` : undefined,
+    emissiveFrames: picked.emissiveFrames ? { files: picked.emissiveFrames.keys.map((k) => `textures/${k}`), fps: picked.emissiveFrames.fps } : undefined,
   };
 }
 
@@ -344,10 +351,11 @@ async function loadBundle(species: string, aspects: string[], label: string, wit
   const textures: PokemonBundle["textures"] = {
     base: url(picked.texture),
     emissive: picked.emissive ? url(picked.emissive) : undefined,
+    emissiveFrames: picked.emissiveFrames ? { urls: picked.emissiveFrames.files.map(url), fps: picked.emissiveFrames.fps } : undefined,
   };
   // Textures ride along with the JSON; a prefetch that fails is retried by the texture loader.
   prefetchImage(textures.base).catch(() => undefined);
-  if (textures.emissive) prefetchImage(textures.emissive).catch(() => undefined);
+  for (const frame of textures.emissiveFrames?.urls ?? (textures.emissive ? [textures.emissive] : [])) prefetchImage(frame).catch(() => undefined);
 
   const speciesFile = manifest.files?.species;
   const t2 = now();

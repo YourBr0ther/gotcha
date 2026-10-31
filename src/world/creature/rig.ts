@@ -104,6 +104,8 @@ export interface LoadedCreature {
   poser: PoserMap;
   texture: THREE.Texture | null;
   emissive: THREE.Texture | null;
+  /** The frames of an animated glow layer, `emissive` first, and how fast to flip them. */
+  emissiveFrames?: { textures: THREE.Texture[]; fps: number };
   material: THREE.Material;
   bundle: PokemonBundle;
   /** Draw calls the model costs: one per bone with cubes. */
@@ -145,9 +147,17 @@ export async function loadCreature(bundle: PokemonBundle, aspects: string[], lab
   } catch (err) {
     console.warn(`[world] texture failed for ${bundle.species}, drawing untextured`, err);
   }
+  let emissiveFrames: LoadedCreature["emissiveFrames"];
   if (bundle.textures.emissive) {
     try {
-      emissive = await timed(`${label}:emissive`, () => loadEmissiveTexture(bundle.textures.emissive!));
+      const frames = bundle.textures.emissiveFrames;
+      if (frames && frames.urls.length > 1) {
+        const textures = await timed(`${label}:emissive`, () => Promise.all(frames.urls.map((u) => loadEmissiveTexture(u))));
+        emissive = textures[0];
+        emissiveFrames = { textures, fps: frames.fps > 0 ? frames.fps : 10 };
+      } else {
+        emissive = await timed(`${label}:emissive`, () => loadEmissiveTexture(bundle.textures.emissive!));
+      }
     } catch (err) {
       console.warn(`[world] emissive texture failed for ${bundle.species}, drawing without glow`, err);
     }
@@ -176,6 +186,7 @@ export async function loadCreature(bundle: PokemonBundle, aspects: string[], lab
     poser,
     texture,
     emissive,
+    emissiveFrames,
     material,
     bundle,
     meshes,
@@ -184,7 +195,8 @@ export async function loadCreature(bundle: PokemonBundle, aspects: string[], lab
       model.dispose();
       material.dispose();
       texture?.dispose();
-      emissive?.dispose();
+      if (emissiveFrames) for (const t of emissiveFrames.textures) t.dispose();
+      else emissive?.dispose();
       particles?.atlas.texture?.dispose();
     },
   };
@@ -749,8 +761,21 @@ export class CreatureRig implements CreatureController {
   }
 
   /** Advance one frame. `lookTarget` is the world point the look layer aims at while idle. */
+  /** Flip an animated glow layer to the frame for this moment. */
+  private flipEmissive(): void {
+    const frames = this.loaded.emissiveFrames;
+    if (!frames) return;
+    const material = this.loaded.material as THREE.MeshLambertMaterial;
+    const next = frames.textures[Math.floor(this.elapsed * frames.fps) % frames.textures.length];
+    if (material.emissiveMap !== next) {
+      material.emissiveMap = next;
+      material.needsUpdate = false;
+    }
+  }
+
   update(dt: number, lookTarget: THREE.Vector3 | null = null): void {
     this.elapsed += dt;
+    this.flipEmissive();
     let moved = 0;
     if (this.orbit) {
       const o = this.orbit;

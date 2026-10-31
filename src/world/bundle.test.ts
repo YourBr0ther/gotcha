@@ -23,7 +23,7 @@ describe("bundle loader", () => {
     expect(resolveVariation(resolvers, []).emissive).toBeUndefined();
   });
 
-  it("takes the first frame of an animated texture or layer (Slugma's lava), rather than failing the load", () => {
+  it("takes the first frame of an animated texture, and every frame of an animated layer (Slugma's lava)", () => {
     const animated = [
       {
         variations: [
@@ -37,7 +37,13 @@ describe("bundle loader", () => {
         ],
       },
     ];
-    expect(resolveVariation(animated, [])).toEqual({ model: "slugma", poser: "slugma", texture: "slugma_0.png", emissive: "slugma_flame_0.png" });
+    expect(resolveVariation(animated, [])).toEqual({
+      model: "slugma",
+      poser: "slugma",
+      texture: "slugma_0.png",
+      emissive: "slugma_flame_0.png",
+      emissiveFrames: { keys: ["slugma_flame_0.png", "slugma_flame_1.png"], fps: 10 },
+    });
   });
 
   it("versions every asset URL", () => {

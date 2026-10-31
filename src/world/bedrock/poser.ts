@@ -279,8 +279,24 @@ export function readPoser(poser: PoserFile, availableClips?: Iterable<string>): 
     }
     return undefined;
   };
-  const cry = oneShot(["cry", "cryAnimation"]);
-  const faint = oneShot(["faint"]);
+  // Cobblemon's own posers leave out clips the animation file carries:
+  // 111 species have a cry clip no poser names, 156 a faint, 61 a sleep.
+  // When the poser is silent, a clip named for the job in the same group
+  // as the idle clip stands in, which is what the synthesized posers do.
+  const group = groupOf(poses.idle?.clips[0]);
+  const byName = (job: string): string | undefined => {
+    if (!available) return undefined;
+    const exact = group ? `${group}.${job}` : undefined;
+    if (exact && available.has(exact)) return exact;
+    for (const candidate of available) if (candidate.endsWith(`.${job}`) && (!group || !candidate.startsWith("animation."))) return candidate;
+    return undefined;
+  };
+  const cry = oneShot(["cry", "cryAnimation"]) ?? byName("cry");
+  const faint = oneShot(["faint"]) ?? byName("faint");
+  if (!poses.sleep) {
+    const sleep = byName("sleep");
+    if (sleep) poses.sleep = { clips: [sleep], procedural: [] };
+  }
 
   for (const pose of list) {
     for (const expr of animationExpressions(pose.quirks)) {
@@ -291,6 +307,13 @@ export function readPoser(poser: PoserFile, availableClips?: Iterable<string>): 
   }
 
   return { poses, cry, faint, quirks };
+}
+
+/** `animation.eevee.ground_idle` -> `animation.eevee`; undefined without a dot. */
+function groupOf(clip: string | undefined): string | undefined {
+  if (!clip) return undefined;
+  const i = clip.lastIndexOf(".");
+  return i > 0 ? clip.slice(0, i) : undefined;
 }
 
 /** The layer stack for an activity, following the fallback chain. */
