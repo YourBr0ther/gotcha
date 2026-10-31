@@ -21,6 +21,11 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 - [x] Emissive textures, per-bone mesh merging, production asset route with immutable caching
 - [x] Ambient wild pokemon per diorama
 - [x] Lighting pass: filmic colour, sun and sky by hour, baked ambient occlusion, bloom and depth blur, animated water, grass
+- [x] Bedrock particle effects on clips: Gastly's gas, Slugma and Magcargo's lava, Ho-Oh's trail, cherry petals, Chinchou's sparks, faint effects
+- [x] Species audit of all 903: lengthless Molang loops, pose conditions, cries in second animation files, animated flame layers, clips the poser omits
+- [ ] Particle billboard size: the half-extent reading makes Gastly's cloud and Ho-Oh's trail look twice the game's; check against Cobblemon's renderer
+- [ ] Posers that name leg bones the model lacks (Azurill, Marill, Azumarill, Jigglypuff, Ducklett, Hatenna, Morpeko) could map to the nearest foot bone
+- [ ] Emote clips on disk (happy, sad, angry on 464 species) could play on the matching emote
 - [ ] Phone performance pass on a real iPhone and a mid-range Android (creatures draw one mesh per bone; merge or drop ambient shadows first)
 - [ ] Embedded asset mode in exports, so a file can leave an install that has a different Cobblemon version
 

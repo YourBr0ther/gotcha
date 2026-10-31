@@ -37,6 +37,13 @@ def thumb(sp, kind):
     return f"thumbs/{sp}-{kind}.jpg"
 
 
+def clip_static(sp, full):
+    """The static audit's record for a clip the renderer names `animation.<group>.<name>`."""
+    short = full.split(".", 1)[1] if full.startswith("animation.") else full
+    group, _, name = short.rpartition(".")
+    return SPECIES[sp]["clips"].get(f"{group}:{name}")
+
+
 def motion(m):
     return m["total"] if m else None
 
@@ -57,8 +64,11 @@ def classify(sp):
     idle = motion(r.get("idleMotion"))
     idle_kind = "clip" if r["poser"]["poses"].get("idle", {}).get("clips") else ("procedural" if r["poser"]["poses"].get("idle") else "none")
     row["idle"] = idle_kind
-    if idle is not None and idle < IDLE_STILL:
-        row["flags"].append("idle still")
+    idle_clips = (r["poser"]["poses"].get("idle") or {}).get("clips") or []
+    idle_animated = any((c := clip_static(sp, n)) and ((c.get("molang") or 0) > 0 or (c.get("length") or 0) > 0) for n in idle_clips)
+    row["idleStaticByData"] = bool(idle_clips) and not idle_animated
+    if idle is not None and idle < IDLE_STILL and idle_animated:
+        row["flags"].append("idle frozen")
     # Walk
     walk = motion(r.get("walkMotion"))
     diff = motion(r.get("walkVsIdle"))
@@ -73,7 +83,10 @@ def classify(sp):
         row["walkSource"] = "procedural"
     else:
         row["walkSource"] = "idle fallback"
-        row["flags"].append("no walk clip")
+        on_disk = [c.split(":")[1] for c in s["clips"] if c.split(":")[1] in ("ground_walk", "water_swim", "air_fly", "ground_run")]
+        row["flags"].append("walk clip on disk unused" if on_disk else "no walk clip")
+        if on_disk:
+            row["notes"].append("unused: " + ", ".join(sorted(set(on_disk))))
     moving = r.get("walkMoving") or []
     travelled = any(m[0] for m in moving)
     row["walkTravelled"] = travelled
@@ -97,11 +110,13 @@ def classify(sp):
     cry = r.get("cry") or {}
     row["cryClip"] = bool(cry.get("clip"))
     row["cryFile"] = s["cry"] == "present" and cry.get("http") == 200
+    cry_tracks = r["clips"].get(cry.get("clip") or "", {}).get("tracks")
+    row["crySoundOnly"] = bool(cry.get("clip")) and cry_tracks == 0
     if not row["cryClip"]:
         row["flags"].append("no cry clip")
     if not row["cryFile"]:
         row["flags"].append("no cry sound")
-    elif cry.get("clip") and not cry.get("running"):
+    elif cry.get("clip") and not cry.get("running") and not row["crySoundOnly"]:
         row["flags"].append("cry clip did not start")
     # Faint
     ft = r.get("faint") or {}
@@ -170,7 +185,8 @@ md.append("## Totals")
 md.append("")
 tot = [
     ("Loaded and drew a first frame", len(rendered), len(rows)),
-    ("Idle clip moves bones", sum(1 for r in rendered if "idle still" not in r["flags"]), len(rendered)),
+    ("Idle clip moves bones", sum(1 for r in rendered if "idle frozen" not in r["flags"] and not r.get("idleStaticByData")), len(rendered)),
+    ("Idle pose is a still pose in Cobblemon's data", sum(1 for r in rendered if r.get("idleStaticByData")), len(rendered)),
     ("Walk from a walk clip", sum(1 for r in rendered if r.get("walkSource") == "clip"), len(rendered)),
     ("Walk from a procedural layer", sum(1 for r in rendered if r.get("walkSource") == "procedural"), len(rendered)),
     ("Walk falls back to the idle pose (slides)", sum(1 for r in rendered if r.get("walkSource") == "idle fallback"), len(rendered)),
@@ -178,6 +194,7 @@ tot = [
     ("Sleep by the procedural lie-down", sum(1 for r in rendered if r.get("sleep") == "procedural lie-down"), len(rendered)),
     ("Cry clip in the poser", sum(1 for r in rendered if r.get("cryClip")), len(rendered)),
     ("Cry sound file served", sum(1 for r in rendered if r.get("cryFile")), len(rendered)),
+    ("Cry clip is sound only (no bone moves)", sum(1 for r in rendered if r.get("crySoundOnly")), len(rendered)),
     ("Faint clip in the poser", sum(1 for r in rendered if r.get("faint") == "clip"), len(rendered)),
     ("Emote clips on disk the game does not play yet", sum(1 for r in rendered if r.get("emoteClips")), len(rendered)),
     ("Declare particle effects", sum(1 for r in rendered if r.get("particles")), len(rendered)),
@@ -192,7 +209,7 @@ md.append("## Flags")
 md.append("")
 md.append(md_table(["Flag", "Species"], sorted(flags.items(), key=lambda kv: -kv[1])))
 md.append("")
-for flag in ["render failed", "not rendered", "idle still", "walk still", "could not travel", "poser names missing bones", "walk looks like idle", "no walk clip", "sleep is idle", "no cry clip", "no cry sound", "cry clip did not start", "NaN in clips", "clip build error", "particles not rendered", "unknown molang", "console errors"]:
+for flag in ["render failed", "not rendered", "idle frozen", "walk still", "could not travel", "poser names missing bones", "walk looks like idle", "walk clip on disk unused", "no walk clip", "sleep is idle", "no cry clip", "no cry sound", "cry clip did not start", "NaN in clips", "clip build error", "particles not rendered", "unknown molang", "console errors"]:
     hit = [r for r in rows if flag in r["flags"]]
     if not hit:
         continue
@@ -200,7 +217,7 @@ for flag in ["render failed", "not rendered", "idle still", "walk still", "could
     md.append("")
     md.append(", ".join(sp_link(r) for r in hit))
     notes = [(r, n) for r in hit for n in r["notes"]]
-    if notes and flag in ("render failed", "NaN in clips", "clip build error", "unknown molang", "console errors", "poser names missing bones"):
+    if notes and flag in ("render failed", "NaN in clips", "clip build error", "unknown molang", "console errors", "poser names missing bones", "walk clip on disk unused"):
         md.append("")
         seen = Counter(n for _, n in notes)
         for n, c in seen.most_common(12):
@@ -247,6 +264,7 @@ for r in rows:
 md.append(md_table(["Dex", "Species", "Idle", "Walk", "Sleep", "Cry", "Faint", "Extra clips", "Particles", "Flags"], lines))
 md.append("")
 open(f"{ROOT}/REPORT.md", "w").write("\n".join(md))
+json.dump({r["species"]: {"flags": r["flags"], "notes": r["notes"], "walkSource": r.get("walkSource"), "sleep": r.get("sleep"), "height": r.get("height")} for r in rows}, open(f"{ROOT}/flags.json", "w"), indent=1)
 
 # HTML gallery
 os.makedirs(f"{ROOT}/thumbs", exist_ok=True)

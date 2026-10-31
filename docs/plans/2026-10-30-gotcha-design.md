@@ -266,6 +266,24 @@ and manifest numbers live in the owner's private cluster repo, which the
 `k3s-deploy` agent reads. Nothing in this public repo names the owner's
 network.
 
+**Cobblemon's pack is read the way the game reads it, found one species
+audit at a time.** On 2026-10-31 every extracted species was loaded,
+walked, put to sleep, made to cry and made to faint in headless Chromium
+(`scripts/species-render-audit.py`, report under `test-results/species-audit/`).
+Four habits of the pack had to be matched: a looping clip with no
+`animation_length` and only Molang keyframes runs forever in the game, so
+the builder loops it over the shortest of 1, 2, 4, 8 or 16 s at which every
+channel closes; a pose's `condition` (`q.in_air && q.is_ridden`,
+`q.is_sprinting`) decides whether it applies, evaluated against a grounded,
+unridden pokemon; a poser silent about cry, faint or sleep gets the clip of
+that name, from the idle clip's group first, since 314 species keep their
+cry in a second `dummy` animation file that is now merged in; and an
+emissive layer given as frames plays as a flipbook. What stays as the pack
+has it: still idle poses (273 species), walking with the idle clip (about
+140, the game slides them too), posers naming leg bones the model lacks,
+sound-only cry clips, and literal `NaN` or typo expressions, which read as
+zero with one warning.
+
 ## Milestones
 
 1. **Skeleton.** Next.js app, Drizzle schema, Authelia identity, trainer and
