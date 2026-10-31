@@ -23,6 +23,23 @@ describe("bundle loader", () => {
     expect(resolveVariation(resolvers, []).emissive).toBeUndefined();
   });
 
+  it("takes the first frame of an animated texture or layer (Slugma's lava), rather than failing the load", () => {
+    const animated = [
+      {
+        variations: [
+          {
+            aspects: [],
+            model: "cobblemon:slugma.geo",
+            poser: "cobblemon:slugma",
+            texture: { fps: 10, frames: ["textures/slugma_0.png", "textures/slugma_1.png"], loop: true },
+            layers: [{ emissive: true, name: "flame", texture: { fps: 10, frames: ["textures/slugma_flame_0.png", "textures/slugma_flame_1.png"] } }],
+          },
+        ],
+      },
+    ];
+    expect(resolveVariation(animated, [])).toEqual({ model: "slugma", poser: "slugma", texture: "slugma_0.png", emissive: "slugma_flame_0.png" });
+  });
+
   it("versions every asset URL", () => {
     expect(assetUrl("eevee", "textures/eevee.png", "6ec83e50606812f5")).toBe("/api/assets/eevee/textures/eevee.png?v=6ec83e50606812f5");
     expect(assetUrl("eevee", "manifest.json")).toBe("/api/assets/eevee/manifest.json");

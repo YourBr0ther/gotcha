@@ -1,5 +1,6 @@
 // pnpm assets:extract [--jar path] [--out dir] [--species a,b]
 // pnpm assets:check <species> [--out dir]
+// pnpm assets:particles [--jar path] [--out dir]
 // pnpm exec tsx packages/cobblemon-assets/src/cli.ts survey [--jar path] [--out file]
 
 import { writeFile } from "node:fs/promises";
@@ -8,6 +9,7 @@ import { buildCatalog } from "./catalog.js";
 import { formatCheck, readManifest } from "./check.js";
 import { extractAll } from "./extract.js";
 import { JarReader } from "./jar.js";
+import { extractParticles } from "./particles.js";
 import { formatSurvey, runSurvey } from "./survey.js";
 
 export const DEFAULT_JAR = "assets/cobblemon/cobblemon.jar";
@@ -44,6 +46,7 @@ export function parseArgs(argv: string[]): Args {
 const USAGE = `usage:
   assets:extract [--jar <path>] [--out <dir>] [--species <a,b,...>]
   assets:check <species> [--out <dir>]
+  assets:particles [--jar <path>] [--out <dir>]
   survey [--jar <path>] [--out <file>]`;
 
 export async function main(argv: string[]): Promise<number> {
@@ -65,6 +68,9 @@ export async function main(argv: string[]): Promise<number> {
         console.log(`extracted ${result.extracted.length} species to ${outDir} in ${((Date.now() - started) / 1000).toFixed(1)}s`);
         console.log(`skipped ${Object.keys(result.skipped).length}${reasons.size ? ": " + [...reasons].map(([r, n]) => `${r} (${n})`).join(", ") : ""}`);
         console.log(`index.json lists ${Object.keys(result.index.species).length} species`);
+        // The particle effects the animations fire, as their own folder with
+        // its own index, so a built cache can gain them without a re-extract.
+        await extractParticles({ jar, catalog, outDir, log: (line) => console.error(line) });
       } finally {
         jar.close();
       }
@@ -77,6 +83,17 @@ export async function main(argv: string[]): Promise<number> {
         return 2;
       }
       console.log(formatCheck(await readManifest(outDir, species.toLowerCase())));
+      return 0;
+    }
+    case "particles": {
+      const jar = openJar(jarPath);
+      try {
+        const catalog = buildCatalog(jar);
+        const index = await extractParticles({ jar, catalog, outDir, log: (line) => console.error(line) });
+        console.log(`wrote ${Object.keys(index.effects).length} particle effects to ${resolve(outDir, "particles")}`);
+      } finally {
+        jar.close();
+      }
       return 0;
     }
     case "survey": {

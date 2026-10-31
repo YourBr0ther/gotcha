@@ -4,7 +4,7 @@
  * tells a client the cache changed.
  */
 
-import { readCacheIndex, shortHash } from "../_lib/cache";
+import { readCacheIndex, readParticleIndex, shortHash } from "../_lib/cache";
 
 export interface AssetIndexEntry {
   v: string;
@@ -15,6 +15,8 @@ export interface AssetIndexEntry {
 export interface AssetIndex {
   cobblemonVersion?: string;
   species: Record<string, AssetIndexEntry>;
+  /** Present once the particle step has run on the cache; its version covers `/api/assets/particles/*`. */
+  particles?: { v: string };
 }
 
 export async function GET(): Promise<Response> {
@@ -25,5 +27,7 @@ export async function GET(): Promise<Response> {
     species[id] = { v: shortHash(entry.hash), name: entry.name, dex: entry.dex };
   }
   const body: AssetIndex = { cobblemonVersion: index.cobblemonVersion, species };
+  const particles = await readParticleIndex();
+  if (particles) body.particles = { v: shortHash(particles.hash) };
   return Response.json(body, { headers: { "cache-control": "public, max-age=0, must-revalidate" } });
 }

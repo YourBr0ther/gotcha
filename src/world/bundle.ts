@@ -27,7 +27,8 @@
  */
 
 import type { SpeciesBehaviour } from "@gotcha/cpkmn";
-import type { PokemonBundle } from "./api";
+import type { ParticleEffectAsset, PokemonBundle } from "./api";
+import { effectsInAnimationFile, type ParticleDefinitionFile } from "./bedrock/particles";
 import { prefetchImage } from "./bedrock/prefetch";
 import type { BedrockAnimationFile, BedrockGeometryFile, PoserFile } from "./bedrock/types";
 import { measure, now } from "./perf";
@@ -39,12 +40,19 @@ import { measure, now } from "./perf";
  */
 type ManifestPoser = PoserFile & { file?: string; synthesized?: boolean };
 
+/** Cobblemon flips through `frames` at `fps` (Slugma's lava); the renderer shows the first frame. */
+export interface AnimatedTexture {
+  fps: number;
+  frames: string[];
+  loop?: boolean;
+}
+
 /** A variation as the manifest writes it: file paths relative to the species folder. */
 export interface ManifestVariation {
   aspects: string[];
   model?: string;
   poser?: string;
-  texture?: string;
+  texture?: string | AnimatedTexture;
   layers?: ResolverLayer[];
 }
 
@@ -60,7 +68,7 @@ interface Manifest {
 
 interface ResolverLayer {
   name?: string;
-  texture?: string;
+  texture?: string | AnimatedTexture;
   emissive?: boolean;
 }
 
@@ -68,8 +76,14 @@ interface ResolverVariation {
   aspects: string[];
   model?: string;
   poser?: string;
-  texture?: string;
+  texture?: string | AnimatedTexture;
   layers?: ResolverLayer[];
+}
+
+/** The still texture for a reference: itself, or the first frame of an animated one. */
+function firstFrame(texture: string | AnimatedTexture | undefined): string | undefined {
+  if (texture === undefined || typeof texture === "string") return texture;
+  return texture.frames[0];
 }
 
 interface Resolver {
@@ -78,6 +92,12 @@ interface Resolver {
 
 interface AssetIndex {
   species: Record<string, { v: string; name: string; dex: number }>;
+  /** Set once the cache has the particle step; versions `/api/assets/particles/*`. */
+  particles?: { v: string };
+}
+
+interface ParticleIndex {
+  effects: Record<string, { file: string; texture: string | null }>;
 }
 
 export const ASSET_BASE = "/api/assets";
@@ -105,6 +125,51 @@ export function loadAssetIndex(): Promise<AssetIndex> {
 export function resetAssetIndex(): void {
   indexPromise = null;
   inflight.clear();
+  particleIndexPromise = null;
+  particleDefinitions.clear();
+}
+
+export const PARTICLES_FOLDER = "particles";
+
+let particleIndexPromise: Promise<ParticleIndex | null> | null = null;
+const particleDefinitions = new Map<string, Promise<ParticleDefinitionFile>>();
+
+/** `particles/index.json`, fetched once per page; null when the server has no particle step. */
+function loadParticleIndex(version: string): Promise<ParticleIndex | null> {
+  if (!particleIndexPromise) {
+    particleIndexPromise = getJson<ParticleIndex>(assetUrl(PARTICLES_FOLDER, "index.json", version)).catch((err) => {
+      console.warn("[world] particle index unavailable; pokemon draw without effects", err);
+      return null;
+    });
+  }
+  return particleIndexPromise;
+}
+
+/**
+ * The definitions for the effects a species' clips name. Each definition
+ * is fetched once per page however many species share it; ids the index
+ * lacks (code-side handlers) are left out.
+ */
+export async function loadParticleEffects(ids: string[], version: string): Promise<Record<string, ParticleEffectAsset> | undefined> {
+  const index = await loadParticleIndex(version);
+  if (!index) return undefined;
+  const out: Record<string, ParticleEffectAsset> = {};
+  await Promise.all(
+    ids.map(async (id) => {
+      const entry = index.effects[id];
+      if (!entry) return;
+      let pending = particleDefinitions.get(id);
+      if (!pending) {
+        pending = getJson<ParticleDefinitionFile>(assetUrl(PARTICLES_FOLDER, entry.file, version)).catch((err) => {
+          particleDefinitions.delete(id);
+          throw err;
+        });
+        particleDefinitions.set(id, pending);
+      }
+      out[id] = { definition: await pending, texture: entry.texture ? assetUrl(PARTICLES_FOLDER, entry.texture, version) : undefined };
+    }),
+  );
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 const VERSION_KEY = "gotcha.assetVersion.";
@@ -152,9 +217,11 @@ export function resolveVariation(resolvers: Resolver[], aspects: string[]): Reso
       if (!v.aspects.every((a) => aspects.includes(a))) continue;
       if (v.model) out.model = key(v.model);
       if (v.poser) out.poser = key(v.poser);
-      if (v.texture) out.texture = key(v.texture);
+      const texture = firstFrame(v.texture);
+      if (texture) out.texture = key(texture);
       for (const layer of v.layers ?? []) {
-        if (layer.emissive && layer.texture) out.emissive = key(layer.texture);
+        const layerTexture = firstFrame(layer.texture);
+        if (layer.emissive && layerTexture) out.emissive = key(layerTexture);
       }
     }
   }
@@ -222,6 +289,8 @@ const inflight = new Map<string, Promise<PokemonBundle>>();
 export interface LoadOptions {
   /** Prefix for the performance measures; the ambient dressing uses `ambient` so its numbers stay apart from the active pokemon's. */
   label?: string;
+  /** Fetch the particle effects the clips fire. Default on; the ambient dressing turns it off to stay cheap. */
+  particles?: boolean;
 }
 
 /**
@@ -229,16 +298,16 @@ export interface LoadOptions {
  * one load (React's StrictMode runs the loading effect twice in dev).
  */
 export function loadSpeciesBundle(species: string, aspects: string[] = [], options: LoadOptions = {}): Promise<PokemonBundle> {
-  const k = `${species}|${[...aspects].sort().join(",")}`;
+  const k = `${species}|${[...aspects].sort().join(",")}|${options.particles === false ? "plain" : "fx"}`;
   let p = inflight.get(k);
   if (!p) {
-    p = loadBundle(species, aspects, options.label ?? "bundle").finally(() => inflight.delete(k));
+    p = loadBundle(species, aspects, options.label ?? "bundle", options.particles !== false).finally(() => inflight.delete(k));
     inflight.set(k, p);
   }
   return p;
 }
 
-async function loadBundle(species: string, aspects: string[], label: string): Promise<PokemonBundle> {
+async function loadBundle(species: string, aspects: string[], label: string, withParticles: boolean): Promise<PokemonBundle> {
   const t0 = now();
   const remembered = rememberedVersion(species);
   const indexPromise = loadAssetIndex();
@@ -289,6 +358,20 @@ async function loadBundle(species: string, aspects: string[], label: string): Pr
     speciesFile ? getJson<{ behaviour?: SpeciesBehaviour; baseScale?: number }>(url(speciesFile)) : Promise.resolve(null),
   ]);
   measure(`${label}:files`, t2);
+
+  // Effects, only for a species whose clips fire any, and only once the
+  // server has the particle step; a cache without it costs no request.
+  let particles: PokemonBundle["particles"];
+  const effectIds = withParticles && index.particles ? effectsInAnimationFile(animations) : [];
+  if (effectIds.length > 0 && index.particles) {
+    const t3 = now();
+    try {
+      particles = await loadParticleEffects(effectIds, index.particles.v);
+    } catch (err) {
+      console.warn(`[world] particle effects failed for ${species}, drawing without them`, err);
+    }
+    measure(`${label}:particles`, t3);
+  }
   measure(label, t0);
 
   const cryFile = manifest.sounds?.cry?.file;
@@ -301,5 +384,6 @@ async function loadBundle(species: string, aspects: string[], label: string): Pr
     sounds: cryFile ? { cry: url(cryFile) } : undefined,
     behaviour: speciesJson?.behaviour,
     baseScale: speciesJson?.baseScale ?? 1,
+    particles,
   };
 }

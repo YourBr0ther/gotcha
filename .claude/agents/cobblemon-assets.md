@@ -25,6 +25,7 @@ means that prefix plus species:
 - Dex entries: `data/cobblemon/dex_entries/pokemon/<region>/<species>.json` hold the pokedex lines.
 - Spawns: `data/cobblemon/spawn_pool_world/<id>.json` and `habitat_pools/`, biome tags like `#cobblemon:is_forest`.
 - Shared Molang: `data/cobblemon/molang/` holds expressions animations can reference; include them in the survey.
+- Particles: `assets/cobblemon/bedrock/particles/**/*.json` (match on `description.identifier`, not the filename; one file lacks the `.particle` infix) with sprite sheets under `assets/cobblemon/textures/particle/` (singular; the definitions say `textures/particles/`). Animations reference them in `particle_effects` without the namespace. `pnpm assets:particles` copies the ones pokemon animations name into `.cobblemon-cache/particles/` with its own `index.json`; `extract` runs it last. It never touches a species folder or the species index. Effects named `*_handler` are Kotlin in the mod and are listed under `skipped`.
 
 Molang matters. Survey every animation file in the jar and write the list of
 distinct Molang functions and query variables used to

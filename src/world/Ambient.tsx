@@ -79,7 +79,7 @@ export function Ambient() {
       if (cancelled) return;
       const loaded = await Promise.all(
         picks.map(async (pick) => {
-          const b = await loadSpeciesBundle(pick.species, [], { label: "ambient:bundle" });
+          const b = await loadSpeciesBundle(pick.species, [], { label: "ambient:bundle", particles: false });
           return { pick, creature: await loadCreature(b, [], "ambient") };
         }),
       );

@@ -79,6 +79,16 @@ export interface BedrockBoneAnimation {
   scale?: BedrockChannel;
 }
 
+/** One particle effect a clip fires at a keyframe; `locator` names where on the model, else the root. */
+export interface BedrockParticleEffect {
+  effect: string;
+  locator?: string;
+  pre_effect_script?: string;
+}
+
+/** A keyframe's entry: one effect, several, or (once, in the jar) a bare effect name. */
+export type BedrockParticleKeyframe = BedrockParticleEffect | string | Array<BedrockParticleEffect | string>;
+
 export interface BedrockAnimation {
   loop?: boolean | "hold_on_last_frame";
   animation_length?: number;
@@ -86,7 +96,8 @@ export interface BedrockAnimation {
   anim_time_update?: string;
   blend_weight?: MolangValue;
   bones?: Record<string, BedrockBoneAnimation>;
-  particle_effects?: unknown;
+  /** Keyed by seconds into the clip, as a string. */
+  particle_effects?: Record<string, BedrockParticleKeyframe>;
   sound_effects?: unknown;
 }
 

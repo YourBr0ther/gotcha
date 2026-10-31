@@ -5,6 +5,7 @@
  */
 
 import type { SpeciesBehaviour } from "@gotcha/cpkmn";
+import type { ParticleDefinitionFile } from "./bedrock/particles";
 import type { BedrockAnimationFile, BedrockGeometryFile, PoserFile } from "./bedrock/types";
 import type { Activity } from "./bedrock/poser";
 import type { DioramaId } from "./dioramas";
@@ -33,6 +34,14 @@ export interface PokemonBundle {
   behaviour?: SpeciesBehaviour;
   /** Cobblemon's baseScale; 1 means the model is drawn at its native size. */
   baseScale?: number;
+  /** The particle effects the clips fire, keyed by effect id. Absent when the species has none or the cache lacks the particle step. */
+  particles?: Record<string, ParticleEffectAsset>;
+}
+
+export interface ParticleEffectAsset {
+  definition: ParticleDefinitionFile;
+  /** URL of the sprite sheet; absent when the jar had none, which draws a white square. */
+  texture?: string;
 }
 
 export interface WorldHandle {

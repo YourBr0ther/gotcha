@@ -1,20 +1,57 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import cubeAnim from "../fixtures/cube.animation.json";
 import cubeGeo from "../fixtures/cube.geo.json";
 import cubePoser from "../fixtures/cube.poser.json";
 import { createClipLibrary } from "../bedrock/animation";
 import { buildModel } from "../bedrock/geometry";
+import { EMPTY_ATLAS, type ParticleDefinitionFile, parseParticleDefinition } from "../bedrock/particles";
 import { readPoser } from "../bedrock/poser";
 import type { BedrockAnimationFile, BedrockGeometryFile, PoserFile } from "../bedrock/types";
 import { getDiorama } from "../dioramas";
 import { CreatureRig, type LoadedCreature, startBaseAction } from "./rig";
 
+/** A synthetic steady smoke, in the shape of the jar's idle effects. */
+const SMOKE: ParticleDefinitionFile = {
+  particle_effect: {
+    description: { identifier: "test:cube_smoke" },
+    components: {
+      "minecraft:emitter_lifetime_expression": { activation_expression: 1 },
+      "minecraft:emitter_rate_steady": { spawn_rate: 20, max_particles: 10 },
+      "minecraft:emitter_shape_point": {},
+      "minecraft:particle_lifetime_expression": { max_lifetime: 0.3 },
+    },
+  },
+};
+
+/** A synthetic burst, in the shape of the jar's faint sparks. */
+const SPARKS: ParticleDefinitionFile = {
+  particle_effect: {
+    description: { identifier: "test:cube_sparks" },
+    components: {
+      "minecraft:emitter_lifetime_once": { active_time: 0.5 },
+      "minecraft:emitter_rate_instant": { num_particles: 6 },
+      "minecraft:particle_lifetime_expression": { max_lifetime: 0.2 },
+    },
+  },
+};
+
+interface FixtureOptions {
+  /** Attach the smoke to the idle clip, the sparks to the faint clip, or both. */
+  withParticles?: "idle" | "faint" | "both";
+}
+
 /** The synthetic cube as a loaded creature, optionally without its sleep pose. */
-function loadFixture(withSleep: boolean): LoadedCreature {
+function loadFixture(withSleep: boolean, options: FixtureOptions = {}): LoadedCreature {
   const material = new THREE.MeshBasicMaterial();
   const model = buildModel(cubeGeo as unknown as BedrockGeometryFile, material);
-  const clips = createClipLibrary(cubeAnim as unknown as BedrockAnimationFile);
+  const animations = JSON.parse(JSON.stringify(cubeAnim)) as BedrockAnimationFile;
+  const fx = options.withParticles;
+  if (fx === "idle" || fx === "both") animations.animations["animation.cube.ground_idle"].particle_effects = { "0.0": { effect: "cube_smoke", locator: "nose" } };
+  if (fx === "faint" || fx === "both") {
+    animations.animations["animation.cube.faint"].particle_effects = { "0.1": [{ effect: "cube_sparks" }, { effect: "cube_sparks" }], "0.3": "cobblemon:cube_handler" };
+  }
+  const clips = createClipLibrary(animations);
   const poserFile = JSON.parse(JSON.stringify(cubePoser)) as PoserFile;
   if (!withSleep) delete poserFile.poses?.sleeping;
   const poser = readPoser(poserFile, clips.names());
@@ -25,8 +62,9 @@ function loadFixture(withSleep: boolean): LoadedCreature {
     texture: null,
     emissive: null,
     material,
-    bundle: { species: "cube", geometry: cubeGeo as unknown as BedrockGeometryFile, animations: cubeAnim as unknown as BedrockAnimationFile, poser: poserFile, textures: { base: "" } },
+    bundle: { species: "cube", geometry: cubeGeo as unknown as BedrockGeometryFile, animations, poser: poserFile, textures: { base: "" } },
     meshes: 0,
+    particles: fx ? { effects: new Map([["cube_smoke", parseParticleDefinition(SMOKE)], ["cube_sparks", parseParticleDefinition(SPARKS)]]), atlas: EMPTY_ATLAS } : undefined,
     dispose() {
       model.dispose();
       material.dispose();
@@ -130,5 +168,54 @@ describe("startBaseAction", () => {
     mixer.update(0.5);
     expect(action.getEffectiveWeight()).toBeCloseTo(1, 5);
     expect(action.isRunning()).toBe(true);
+  });
+});
+
+describe("particle effects on clips", () => {
+  it("runs a steady emitter while the idle plays and stops it when the idle fades out", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const loaded = loadFixture(true, { withParticles: "idle" });
+    const rig = new CreatureRig(loaded, getDiorama("meadow"));
+    expect(rig.particleCount).toBe(0);
+    tick(rig, 0.5);
+    expect(rig.particleCount).toBeGreaterThan(0);
+    expect(rig.activeEmitters).toEqual(["cube_smoke"]);
+    expect(rig.particleDrawCalls).toBe(1);
+    // The idle fades out over a quarter second; once it is below half weight the emitter stops and the smoke drains.
+    rig.play("sleep");
+    tick(rig, 1);
+    expect(rig.particleCount).toBe(0);
+    expect(rig.activeEmitters).toEqual([]);
+    expect(rig.particleDrawCalls).toBe(0);
+    // Back to idle, the smoke starts again.
+    rig.play("idle");
+    tick(rig, 0.6);
+    expect(rig.particleCount).toBeGreaterThan(0);
+    warn.mockRestore();
+  });
+
+  it("fires a one-shot when the faint clip crosses its keyframe, once per entry, and skips code-side handlers with one warning", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const loaded = loadFixture(true, { withParticles: "faint" });
+    const rig = new CreatureRig(loaded, getDiorama("meadow"));
+    rig.play("faint");
+    tick(rig, 0.05);
+    expect(rig.activeEmitters.filter((id) => id === "cube_sparks")).toHaveLength(0);
+    tick(rig, 0.1);
+    expect(rig.activeEmitters.filter((id) => id === "cube_sparks")).toHaveLength(2);
+    expect(rig.particleCount).toBe(12);
+    tick(rig, 1);
+    expect(rig.particleCount).toBe(0);
+    expect(rig.activeEmitters).toEqual([]);
+    const handlerWarnings = warn.mock.calls.filter((c) => String(c[0]).includes("cube_handler"));
+    expect(handlerWarnings).toHaveLength(1);
+    warn.mockRestore();
+  });
+
+  it("costs nothing for a species without effects", () => {
+    const rig = new CreatureRig(loadFixture(true), getDiorama("meadow"));
+    tick(rig, 0.5);
+    expect(rig.particleCount).toBe(0);
+    expect(rig.effects.children).toHaveLength(0);
   });
 });

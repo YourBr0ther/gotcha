@@ -17,6 +17,15 @@
  * grid; a swimmer adds the water grid and sinks to a float height inside a
  * water volume; a water-only species is redirected to water spots; a flier
  * travels in a straight line at hover height and lands only on sleep spots.
+ *
+ * Particle effects ride the clips. Each clip's `particle_effects` block is
+ * read once into keyframes; every frame the rig compares an action's time
+ * with where it was last frame and fires whatever it crossed, so a looping
+ * clip refires each loop and a one-shot fires on its way through. A
+ * steady emitter at 0.0 of a looping idle (Gastly's smoke) lives while the
+ * clip plays and is told to stop when the clip fades out or stops. The
+ * particles draw from `effects`, a sibling of `group` at the scene root,
+ * because their positions are world positions.
  */
 
 import * as THREE from "three";
@@ -24,6 +33,19 @@ import type { Activity, EmoteKind, PokemonBundle } from "../api";
 import { applyLoop, type ClipLibrary, createClipLibrary } from "../bedrock/animation";
 import { buildModel, type LoadedModel } from "../bedrock/geometry";
 import { mergeBoneCubes } from "../bedrock/merge";
+import { warnOnce } from "../bedrock/molang";
+import { buildParticleAtlas } from "../bedrock/particle-atlas";
+import {
+  clipParticleKeyframes,
+  EMPTY_ATLAS,
+  type Emitter,
+  isHandlerEffect,
+  type ParsedEffect,
+  type ParticleAtlas,
+  type ParticleKeyframe,
+  parseParticleDefinition,
+  ParticleSystem,
+} from "../bedrock/particles";
 import { type PoserMap, type PoseStack, readPoser, resolveActivity } from "../bedrock/poser";
 import { createBedrockMaterial, loadBedrockTexture, loadEmissiveTexture } from "../bedrock/texture";
 import type { DioramaDef, Medium, Spot, WaterVolume } from "../dioramas/types";
@@ -70,6 +92,12 @@ export function startBaseAction(action: THREE.AnimationAction, immediate: boolea
 const EMOTE_SECONDS = 1.8;
 const ARRIVE_EPSILON = 0.05;
 
+/** The particle effects a creature's clips fire, parsed, with their sprite sheets packed. */
+export interface ParticleAssets {
+  effects: Map<string, ParsedEffect>;
+  atlas: ParticleAtlas;
+}
+
 export interface LoadedCreature {
   model: LoadedModel;
   clips: ClipLibrary;
@@ -80,7 +108,26 @@ export interface LoadedCreature {
   bundle: PokemonBundle;
   /** Draw calls the model costs: one per bone with cubes. */
   meshes: number;
+  /** Absent for a species whose clips fire nothing. */
+  particles?: ParticleAssets;
   dispose(): void;
+}
+
+/** Parse the bundle's effect definitions and pack their textures; undefined when there are none. */
+async function loadParticleAssets(bundle: PokemonBundle, label: string): Promise<ParticleAssets | undefined> {
+  const assets = bundle.particles;
+  if (!assets || Object.keys(assets).length === 0) return undefined;
+  const effects = new Map<string, ParsedEffect>();
+  for (const [id, asset] of Object.entries(assets)) effects.set(id, parseParticleDefinition(asset.definition));
+  let atlas: ParticleAtlas = EMPTY_ATLAS;
+  if (typeof document !== "undefined") {
+    try {
+      atlas = await timed(`${label}:particles`, () => buildParticleAtlas(assets));
+    } catch (err) {
+      console.warn(`[world] particle textures failed for ${bundle.species}, drawing them white`, err);
+    }
+  }
+  return { effects, atlas };
 }
 
 /**
@@ -121,6 +168,7 @@ export async function loadCreature(bundle: PokemonBundle, aspects: string[], lab
     for (const activity of PREBUILT_ACTIVITIES) clips.prebuild(resolveActivity(poser, activity)?.clips ?? []);
     clips.prebuild(poser.quirks);
   });
+  const particles = await loadParticleAssets(bundle, label);
   measure(`${label}:load`, t0);
   return {
     model,
@@ -131,11 +179,13 @@ export async function loadCreature(bundle: PokemonBundle, aspects: string[], lab
     material,
     bundle,
     meshes,
+    particles,
     dispose() {
       model.dispose();
       material.dispose();
       texture?.dispose();
       emissive?.dispose();
+      particles?.atlas.texture?.dispose();
     },
   };
 }
@@ -170,8 +220,23 @@ export interface Orbit {
   speed: number;
 }
 
+/** An action whose clip fires particles, and where its time was last frame. */
+interface TrackedClip {
+  action: THREE.AnimationAction;
+  keyframes: ParticleKeyframe[];
+  lastTime: number;
+  playing: boolean;
+  /** Emitters that live as long as the clip plays, by keyframe index. */
+  continuous: Map<number, Emitter>;
+}
+
+/** An action counts as playing once it carries at least this much weight, so a fade-in starts its effects and a fade-out ends them. */
+const PARTICLE_WEIGHT = 0.5;
+
 export class CreatureRig implements CreatureController {
   readonly group = new THREE.Group();
+  /** The particle meshes; mount it beside `group` at the scene root, untransformed. */
+  readonly effects: THREE.Group;
   readonly mixer: THREE.AnimationMixer;
   /** Height of the model in blocks after baseScale, for framing. */
   readonly height: number;
@@ -218,6 +283,10 @@ export class CreatureRig implements CreatureController {
   private orbit: Orbit | null = null;
   private orbitAngle = 0;
   private elapsed = 0;
+  private readonly particles: ParticleSystem | null;
+  /** `locator:<name>` groups from the geometry, by name; the first of a repeated name wins. */
+  private readonly locators = new Map<string, THREE.Object3D>();
+  private readonly tracked = new Map<string, TrackedClip>();
 
   constructor(readonly loaded: LoadedCreature, diorama: DioramaDef) {
     this.diorama = diorama;
@@ -237,6 +306,11 @@ export class CreatureRig implements CreatureController {
     this.mixer = new THREE.AnimationMixer(loaded.model.root);
     this.bones = new Map(loaded.model.bones);
     this.procedural = new ProceduralStack(this.bones, loaded.model.root, []);
+    this.particles = loaded.particles ? new ParticleSystem(loaded.particles.atlas) : null;
+    this.effects = this.particles?.root ?? new THREE.Group();
+    loaded.model.root.traverse((obj) => {
+      if (obj.name.startsWith("locator:") && !this.locators.has(obj.name.slice(8))) this.locators.set(obj.name.slice(8), obj);
+    });
 
     this.sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({ transparent: true, depthWrite: false, sizeAttenuation: true, toneMapped: false, fog: false }),
@@ -351,7 +425,94 @@ export class CreatureRig implements CreatureController {
     const action = this.mixer.clipAction(clip.clip);
     applyLoop(action, clip.loop);
     this.actions.set(name, action);
+    if (this.particles) {
+      const keyframes = clipParticleKeyframes(this.loaded.bundle.animations.animations?.[name]);
+      if (keyframes.length > 0) this.tracked.set(name, { action, keyframes, lastTime: 0, playing: false, continuous: new Map() });
+    }
     return action;
+  }
+
+  /** Live particles this creature is drawing. */
+  get particleCount(): number {
+    return this.particles?.particleCount ?? 0;
+  }
+
+  /** Effect ids of emitters still spawning or draining. */
+  get activeEmitters(): string[] {
+    return this.particles?.activeEmitters ?? [];
+  }
+
+  /** Draw calls the particles cost right now: one per blend mode with anything in it, so at most two. */
+  get particleDrawCalls(): number {
+    return this.particles?.drawCalls ?? 0;
+  }
+
+  /** Play a quirk clip now (the first one, or the one whose name contains `name`); false when there is none. */
+  playQuirk(name?: string): boolean {
+    const quirks = this.loaded.poser.quirks;
+    const pick = name ? quirks.find((q) => q.includes(name)) : quirks[0];
+    return this.playOnce(pick);
+  }
+
+  /** Fire the keyframes an action crossed since last frame, then step the particles. */
+  private updateParticles(dt: number): void {
+    if (!this.particles) return;
+    for (const t of this.tracked.values()) {
+      const action = t.action;
+      const playing = action.isRunning() && action.getEffectiveWeight() >= PARTICLE_WEIGHT;
+      if (playing) {
+        const time = action.time;
+        if (!t.playing) this.fireRange(t, -1, time);
+        else if (time < t.lastTime) {
+          // Looped: the tail of the last pass, then the head of this one.
+          this.fireRange(t, t.lastTime, Infinity);
+          this.fireRange(t, -1, time);
+        } else this.fireRange(t, t.lastTime, time);
+        t.lastTime = time;
+        t.playing = true;
+      } else if (t.playing) {
+        t.playing = false;
+        for (const emitter of t.continuous.values()) emitter.stop();
+        t.continuous.clear();
+      }
+    }
+    this.particles.update(dt);
+  }
+
+  /** Fire keyframes with `from < time <= to`. */
+  private fireRange(t: TrackedClip, from: number, to: number): void {
+    for (let i = 0; i < t.keyframes.length; i++) {
+      const k = t.keyframes[i];
+      if (k.time > from && k.time <= to) this.fireKeyframe(t, i, k);
+    }
+  }
+
+  private fireKeyframe(t: TrackedClip, index: number, k: ParticleKeyframe): void {
+    const species = this.loaded.bundle.species;
+    if (isHandlerEffect(k.effect)) {
+      warnOnce(`particle-handler:${k.effect}`, `${species} fires ${k.effect}, which is code in the mod; skipped`);
+      return;
+    }
+    const effect = this.loaded.particles?.effects.get(k.effect);
+    if (!effect) {
+      warnOnce(`particle-missing:${k.effect}`, `${species} fires ${k.effect}, which the cache has no definition for; skipped`);
+      return;
+    }
+    // Steady, looping and expression emitters run with the clip; a `once`
+    // emitter runs its course and may fire again on the next pass.
+    const continuous = effect.lifetime.kind !== "once";
+    if (continuous) {
+      const alive = t.continuous.get(index);
+      if (alive && !alive.done) return;
+    }
+    let anchor: THREE.Object3D = this.loaded.model.root;
+    if (k.locator) {
+      const found = this.locators.get(k.locator);
+      if (found) anchor = found;
+      else warnOnce(`particle-locator:${species}:${k.locator}`, `${species} has no locator ${k.locator} for ${k.effect}; emitting from the root`);
+    }
+    const emitter = this.particles!.spawn(effect, anchor, { scale: this.scale });
+    if (continuous) t.continuous.set(index, emitter);
   }
 
   private applyStack(stack: PoseStack, immediate: boolean): void {
@@ -677,12 +838,14 @@ export class CreatureRig implements CreatureController {
       scale: this.scale,
       lookTarget: resting && !this.isMoving ? lookTarget : null,
     });
+    this.updateParticles(dt);
   }
 
   dispose(): void {
     this.cancelMove();
     this.procedural.restore();
     this.mixer.stopAllAction();
+    this.particles?.dispose();
     (this.sprite.material as THREE.SpriteMaterial).dispose();
     this.loaded.dispose();
   }

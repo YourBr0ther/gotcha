@@ -102,5 +102,10 @@ function Rig({ rig, token, dioramaId }: { rig: CreatureRig; token: number; diora
     rig.update(Math.min(delta, 0.1), state.camera.position);
   });
 
-  return <primitive object={rig.group} />;
+  return (
+    <>
+      <primitive object={rig.group} />
+      <primitive object={rig.effects} />
+    </>
+  );
 }

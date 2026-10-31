@@ -246,6 +246,21 @@ same `transcribe()` function.
 **Pixel UI from licensed fonts.** Minecraft's own font is not redistributable.
 Monocraft (OFL) for the Minecraft feel, Press Start 2P for headings.
 
+**Particle effects are interpreted, not baked.** Cobblemon attaches Bedrock
+particle definitions to clips (Gastly's gas, Slugma's lava bubbles, cherry
+Torterra's petals, Chinchou's sparks). The extractor copies the definitions
+and sprite sheets the pokemon animations name into
+`.cobblemon-cache/particles/` as its own additive step with its own index,
+so a built cache gains them on the next rollout without a re-extract. The
+renderer reads the component subset those effects use (steady, instant,
+once, looping and expression emitters; point, sphere, disc and box shapes;
+flipbook and static UVs; gradient tint; speed, spin, acceleration, drag;
+linear curves) and warns once per component it ignores. One instanced quad
+mesh per blend mode per creature, sharing one atlas, so a species' effects
+cost at most two draw calls. `size` is read as a half-extent, the Java
+`quadSize` convention; read as a full width Slugma's bubbles vanished and the
+petals were a pixel.
+
 **Deployment specifics stay out of this repo.** The host, registry, namespace
 and manifest numbers live in the owner's private cluster repo, which the
 `k3s-deploy` agent reads. Nothing in this public repo names the owner's

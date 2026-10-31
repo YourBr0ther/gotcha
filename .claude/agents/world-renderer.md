@@ -24,6 +24,16 @@ Molang keyframes are sampled at 20 Hz through the interpreter in
 expression. The poser JSON decides which clip plays for `idle`, `walk`,
 `sleep`, `swim`, `fly`, `cry`, `faint`; `blink` runs as a quirk layer on top.
 
+Particles, `src/world/bedrock/particles.ts`. A clip's `particle_effects`
+block names Bedrock effects at keyframe times; the rig fires each one when
+the action's time crosses it (every loop for a looping clip) at the named
+`locator:<name>` group, or the model root. The interpreter covers the
+component subset the pokemon effects use and warns once per component it
+skips. All of a creature's particles draw as one instanced quad mesh per
+blend mode over one atlas (`particle-atlas.ts`), so two draw calls at most;
+`size` is a half-extent. `window.__creatureRig.particleCount`,
+`.activeEmitters` and `.particleDrawCalls` are there for a script to read.
+
 Movement follows the species `behaviour` block. A walker stays on the
 navmesh. A swimmer prefers water volumes and can leave them only if
 `canWalk`. A flier hovers in the air volume and lands on sleep spots. Speeds

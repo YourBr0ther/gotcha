@@ -64,4 +64,41 @@ export async function speciesVersion(species: string): Promise<string | undefine
   return hash ? shortHash(hash) : undefined;
 }
 
+/** The folder the particle effects sit in, beside the species folders. */
+export const PARTICLES_FOLDER = "particles";
+
+export interface ParticleIndex {
+  format?: number;
+  hash: string;
+  effects: Record<string, { file: string; texture: string | null; material?: string }>;
+  skipped?: Record<string, string>;
+}
+
+let cachedParticles: { file: string; mtimeMs: number; value: ParticleIndex } | null = null;
+
+/** `particles/index.json`, re-read when it changes. Null when the particle step has not run on this cache. */
+export async function readParticleIndex(): Promise<ParticleIndex | null> {
+  const file = path.join(cobblemonCacheDir(), PARTICLES_FOLDER, "index.json");
+  try {
+    const info = await stat(file);
+    if (cachedParticles && cachedParticles.file === file && cachedParticles.mtimeMs === info.mtimeMs) return cachedParticles.value;
+    const value = JSON.parse(await readFile(file, "utf8")) as ParticleIndex;
+    if (!value || typeof value.hash !== "string" || typeof value.effects !== "object") return null;
+    cachedParticles = { file, mtimeMs: info.mtimeMs, value };
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+export async function particlesVersion(): Promise<string | undefined> {
+  const index = await readParticleIndex();
+  return index ? shortHash(index.hash) : undefined;
+}
+
+/** The version a top-level cache folder's URLs carry: a species hash, or the particle folder's. */
+export async function folderVersion(folder: string): Promise<string | undefined> {
+  return folder === PARTICLES_FOLDER ? particlesVersion() : speciesVersion(folder);
+}
+
 export const SPECIES_ID = /^[a-z0-9_-]+$/;

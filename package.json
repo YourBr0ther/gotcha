@@ -21,6 +21,7 @@
     "sim:balance": "tsx scripts/sim-balance.ts",
     "assets:extract": "tsx packages/cobblemon-assets/src/cli.ts extract",
     "assets:check": "tsx packages/cobblemon-assets/src/cli.ts check",
+    "assets:particles": "tsx packages/cobblemon-assets/src/cli.ts particles",
     "pokedex:build": "tsx packages/pokedex/src/cli.ts build",
     "pokedex:refresh": "tsx packages/pokedex/src/cli.ts build --refresh",
     "db:studio": "drizzle-kit studio",

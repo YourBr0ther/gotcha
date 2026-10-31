@@ -17,6 +17,13 @@ beforeAll(async () => {
   await writeFile(path.join(cache, "eevee", "manifest.json"), JSON.stringify({ species: "eevee" }));
   await writeFile(path.join(cache, "eevee", "textures", "eevee.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   await writeFile(path.join(cache, "eevee", "notes.txt"), "secret");
+  await mkdir(path.join(cache, "particles", "textures"), { recursive: true });
+  await writeFile(
+    path.join(cache, "particles", "index.json"),
+    JSON.stringify({ format: 1, hash: "sha256:9c11af14067f7f23abcdef", effects: { puff_smoke: { file: "puff_smoke.json", texture: "textures/smoke.png" } } }),
+  );
+  await writeFile(path.join(cache, "particles", "puff_smoke.json"), JSON.stringify({ particle_effect: {} }));
+  await writeFile(path.join(cache, "particles", "textures", "smoke.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   await writeFile(path.join(dir, "outside.json"), "{}");
   const pokedex = path.join(dir, "pokedex-cache", "species");
   await mkdir(pokedex, { recursive: true });
@@ -74,12 +81,25 @@ describe("asset route", () => {
     expect((await get("ee vee", ["manifest.json"])).status).toBe(404);
   });
 
-  it("lists species with short versions at /api/assets/index", async () => {
+  it("lists species with short versions at /api/assets/index, and the particle folder's version", async () => {
     const { GET } = await import("./index/route");
     const res = await GET();
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { species: Record<string, { v: string }> };
+    const body = (await res.json()) as { species: Record<string, { v: string }>; particles?: { v: string } };
     expect(body.species.eevee.v).toBe("6ec83e50606812f5");
+    expect(body.particles).toEqual({ v: "9c11af14067f7f23" });
+  });
+
+  it("serves the particle folder under its own version", async () => {
+    const def = await get("particles", ["puff_smoke.json"], "?v=9c11af14067f7f23");
+    expect(def.status).toBe(200);
+    expect(def.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(def.headers.get("etag")).toBe('"9c11af14067f7f23"');
+    const png = await get("particles", ["textures", "smoke.png"]);
+    expect(png.status).toBe(200);
+    expect(png.headers.get("content-type")).toBe("image/png");
+    expect(png.headers.get("cache-control")).toContain("must-revalidate");
+    expect((await get("particles", ["..", "eevee", "manifest.json"])).status).toBe(404);
   });
 
   it("names small species that prefer a diorama as ambient candidates", async () => {

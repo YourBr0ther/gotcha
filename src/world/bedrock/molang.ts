@@ -24,6 +24,12 @@ export interface MolangContext {
   lifeTime: number;
   /** `variable.*` / `temp.*` lookups, keyed without the prefix. */
   vars?: Record<string, number>;
+  /**
+   * Source for `math.random`. Keyframe sampling leaves it unset and gets the
+   * midpoint, since a baked clip would freeze whatever came out; particles
+   * pass `Math.random` so every spark lands somewhere new.
+   */
+  random?: () => number;
 }
 
 type Node =
@@ -259,17 +265,21 @@ function readVar(name: string, ctx: MolangContext): number {
   throw new MolangUnsupported(`Unknown query ${name}`);
 }
 
-function call(name: string, args: number[], src: string): number {
+function call(name: string, args: number[], src: string, ctx: MolangContext): number {
   const need = (n: number) => {
     if (args.length < n) throw new MolangUnsupported(`${name} needs ${n} args in "${src}"`);
   };
   if (name.startsWith("q.r.") || name.startsWith("query.r.") || name === "q.riding_yaw_change") return 0;
   switch (name) {
     case "math.random":
-      // Sampled clips are baked once, so a random value would freeze anyway;
-      // the midpoint keeps the pose where the author centred it.
+      // Without a source, sampled clips are baked once, so a random value
+      // would freeze anyway; the midpoint keeps the pose where the author
+      // centred it.
       need(2);
-      return (args[0] + args[1]) / 2;
+      return ctx.random ? args[0] + (args[1] - args[0]) * ctx.random() : (args[0] + args[1]) / 2;
+    case "math.random_integer":
+      need(2);
+      return ctx.random ? Math.floor(args[0] + (args[1] - args[0] + 1) * ctx.random()) : Math.round((args[0] + args[1]) / 2);
     case "math.sin":
       need(1);
       return Math.sin(args[0] * DEG);
@@ -341,6 +351,7 @@ function evalNode(node: Node, ctx: MolangContext, src: string): number {
         node.name,
         node.args.map((a) => evalNode(a, ctx, src)),
         src,
+        ctx,
       );
     case "binary": {
       const l = evalNode(node.left, ctx, src);

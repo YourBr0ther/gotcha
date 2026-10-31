@@ -25,6 +25,17 @@ if [ ! -f "$COBBLEMON/index.json" ]; then
   fi
 fi
 
+# A cache built before the particle step has species but no particles
+# folder; the step is additive and takes a few seconds, so top it up here.
+if [ -f "$COBBLEMON/index.json" ] && [ ! -f "$COBBLEMON/particles/index.json" ]; then
+  if [ -f "$JAR" ]; then
+    log "no particle effects at $COBBLEMON/particles, extracting from $JAR"
+    node /app/tools/extract.mjs particles --jar "$JAR" --out "$COBBLEMON" || log "particle extraction failed; pokemon draw without effects" >&2
+  else
+    log "no particle effects and no jar at $JAR; pokemon draw without effects" >&2
+  fi
+fi
+
 if [ -f "$COBBLEMON/index.json" ] && [ ! -f "$POKEDEX/species/index.json" ]; then
   log "no pokedex cache, building it in the background from PokeAPI"
   (
