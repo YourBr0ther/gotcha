@@ -113,7 +113,7 @@ def classify(sp):
     cry_tracks = r["clips"].get(cry.get("clip") or "", {}).get("tracks")
     row["crySoundOnly"] = bool(cry.get("clip")) and cry_tracks == 0
     if not row["cryClip"]:
-        row["flags"].append("no cry clip")
+        row["flags"].append("no cry clip in the pack")
     if not row["cryFile"]:
         row["flags"].append("no cry sound")
     elif cry.get("clip") and not cry.get("running") and not row["crySoundOnly"]:
@@ -209,7 +209,7 @@ md.append("## Flags")
 md.append("")
 md.append(md_table(["Flag", "Species"], sorted(flags.items(), key=lambda kv: -kv[1])))
 md.append("")
-for flag in ["render failed", "not rendered", "idle frozen", "walk still", "could not travel", "poser names missing bones", "walk looks like idle", "walk clip on disk unused", "no walk clip", "sleep is idle", "no cry clip", "no cry sound", "cry clip did not start", "NaN in clips", "clip build error", "particles not rendered", "unknown molang", "console errors"]:
+for flag in ["render failed", "not rendered", "idle frozen", "walk still", "could not travel", "poser names missing bones", "walk looks like idle", "walk clip on disk unused", "no walk clip", "sleep is idle", "no cry clip in the pack", "no cry sound", "cry clip did not start", "NaN in clips", "clip build error", "particles not rendered", "unknown molang", "console errors"]:
     hit = [r for r in rows if flag in r["flags"]]
     if not hit:
         continue
