@@ -115,6 +115,8 @@ export interface PoserPose {
   animations?: Array<string | { animation?: string; condition?: string }>;
   quirks?: Array<string | { animation?: string; condition?: string }>;
   isBattle?: boolean;
+  /** Molang over the entity's state (`q.in_air && q.is_ridden`); the reader evaluates it against a grounded, unridden pokemon. */
+  condition?: string;
   [key: string]: unknown;
 }
 

@@ -32,7 +32,12 @@ INFO = r"""
   const tex = rig.loaded.texture;
   const poser = rig.loaded.poser;
   const poses = {};
-  for (const [k, v] of Object.entries(poser.poses)) poses[k] = { clips: v.clips, procedural: v.procedural.map((p) => p.kind + (p.kind === 'unknown' ? ':' + p.name : '')) };
+  const missingBones = new Set();
+  const boneRefs = (p) => [].concat(p.legs || [], p.arms || [], p.wings || [], p.bone ? [p.bone] : []);
+  for (const [k, v] of Object.entries(poser.poses)) {
+    poses[k] = { clips: v.clips, procedural: v.procedural.map((p) => p.kind + (p.kind === 'unknown' ? ':' + p.name : '')) };
+    for (const p of v.procedural) for (const b of boneRefs(p)) if (!model.bones.has(b)) missingBones.add(p.kind + ':' + b);
+  }
   const clips = rig.loaded.clips;
   const clipReport = {};
   for (const name of clips.names()) {
@@ -57,13 +62,35 @@ INFO = r"""
     locomotion: rig.locomotion,
     medium: rig.currentMedium,
     activity: rig.currentActivity,
-    poser: { poses, cry: poser.cry, faint: poser.faint, quirks: poser.quirks },
+    poser: { poses, cry: poser.cry, faint: poser.faint, quirks: poser.quirks, missingProceduralBones: [...missingBones] },
     clips: clipReport,
     cryUrl: rig.loaded.bundle.sounds && rig.loaded.bundle.sounds.cry || null,
     stats: { calls: s.calls, triangles: s.triangles, programs: s.programs },
     load: s.load || null,
     particles: typeof rig.particleCount === 'number' ? { count: rig.particleCount, emitters: rig.activeEmitters || [] } : 'unsupported',
   };
+}
+"""
+
+
+WALK = r"""
+() => {
+  const r = window.__creatureRig;
+  const h = window.__worldHandle;
+  const p = r.group.position;
+  const spots = r.diorama.spots;
+  const loco = r.locomotion;
+  const want = loco.flies ? null : (loco.waterOnly || loco.prefersWater) ? 'water' : 'land';
+  const far = Object.keys(spots).filter((n) => !want || (spots[n].medium || 'land') === want).sort((a, b) => {
+    const da = (spots[a].x - p.x) ** 2 + (spots[a].z - p.z) ** 2;
+    const db = (spots[b].x - p.x) ** 2 + (spots[b].z - p.z) ** 2;
+    return db - da;
+  });
+  for (const name of far) {
+    h.moveTo(name).catch(() => {});
+    if (r.isMoving) return { spot: name, activity: r.currentActivity };
+  }
+  return { spot: null, activity: r.currentActivity };
 }
 """
 
@@ -85,6 +112,20 @@ def delta(a, b):
     return {"total": round(total, 4), "maxBone": biggest[1], "max": round(biggest[0], 4)}
 
 
+def travel(samples):
+    """Motion over a run of samples: the sum of consecutive deltas, with the bone that moved most overall."""
+    total = 0.0
+    best = (0.0, "")
+    for x, y in zip(samples, samples[1:]):
+        d = delta(x, y)
+        if not d:
+            continue
+        total += d["total"]
+        if d["max"] > best[0]:
+            best = (d["max"], d["maxBone"])
+    return {"total": round(total, 4), "maxBone": best[1], "max": round(best[0], 4), "samples": len(samples)}
+
+
 def head(url):
     try:
         req = urllib.request.Request(url, method="HEAD")
@@ -94,7 +135,7 @@ def head(url):
         return getattr(e, "code", None) or str(e), None
 
 
-def run_shard(shard, workers, species, out, base, viewport, crop):
+def run_shard(shard, workers, species, out, base, viewport, crop, force=False):
     mine = [s for i, s in enumerate(species) if i % workers == shard]
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=["--enable-unsafe-swiftshader"])
@@ -105,7 +146,7 @@ def run_shard(shard, workers, species, out, base, viewport, crop):
         page.on("pageerror", lambda e: logs.append(("pageerror", str(e))))
         for n, sp in enumerate(mine):
             jpath = f"{out}/json/{sp}.json"
-            if os.path.exists(jpath):
+            if os.path.exists(jpath) and not force:
                 continue
             logs.clear()
             rec = {"species": sp, "ok": False}
@@ -127,23 +168,48 @@ def run_shard(shard, workers, species, out, base, viewport, crop):
                     raise RuntimeError("creature never became visible")
                 time.sleep(0.8)
                 info = page.evaluate(INFO)
+                # A species that never leaves the water gets the pond, where it has room to swim.
+                if info["locomotion"].get("waterOnly"):
+                    page.goto(f"{base}/world?species={sp}&demo=hold&ambient=0&depth=0&hour=12&debug=1&diorama=pond", wait_until="domcontentloaded", timeout=60000)
+                    t1 = time.time()
+                    while time.time() - t1 < 45:
+                        if page.evaluate("() => performance.getEntriesByName('world:creature-visible').length > 0 && !!window.__creatureRig"):
+                            break
+                        time.sleep(0.15)
+                    time.sleep(0.8)
+                    info = page.evaluate(INFO)
+                    rec["diorama"] = "pond"
                 rec.update(info)
-                a = page.evaluate(PROBE)
-                time.sleep(0.7)
-                b = page.evaluate(PROBE)
-                rec["idleMotion"] = delta(a, b)
-                page.screenshot(path=f"{out}/img/{sp}-idle.png", clip=crop)
-                # Walk in whatever medium the creature is in.
-                moving = page.evaluate("() => { const r = window.__creatureRig; const act = r.movingActivity(); window.__worldHandle.play(act); return act; }")
-                rec["walkActivity"] = moving
+                # A tall creature fills the crop; keep the whole frame for it.
+                shot = crop if info["height"] < 2.2 else None
+                rec["fullFrame"] = shot is None
+                idle_samples = [page.evaluate(PROBE)]
+                for _ in range(3):
+                    time.sleep(0.25)
+                    idle_samples.append(page.evaluate(PROBE))
+                a = idle_samples[0]
+                rec["idleMotion"] = travel(idle_samples)
+                page.screenshot(path=f"{out}/img/{sp}-idle.png", clip=shot)
+                # Walk for real: travel toward the farthest spot the creature can
+                # reach, so the procedural leg layers (which scale with speed) swing.
+                walk = page.evaluate(WALK)
+                rec["walkActivity"] = walk["activity"]
+                rec["walkSpot"] = walk["spot"]
                 time.sleep(0.9)
-                c = page.evaluate(PROBE)
-                time.sleep(0.6)
-                d = page.evaluate(PROBE)
-                rec["walkMotion"] = delta(c, d)
+                walk_samples = [page.evaluate(PROBE)]
+                moving1 = page.evaluate("() => [window.__creatureRig.isMoving, +window.__creatureRig.currentSpeed.toFixed(2)]")
+                for _ in range(4):
+                    time.sleep(0.15)
+                    walk_samples.append(page.evaluate(PROBE))
+                moving2 = page.evaluate("() => [window.__creatureRig.isMoving, +window.__creatureRig.currentSpeed.toFixed(2)]")
+                c = walk_samples[0]
+                rec["walkMoving"] = [moving1, moving2]
+                rec["walkMotion"] = travel(walk_samples)
                 rec["walkVsIdle"] = delta(a, c)
                 rec["walkRunning"] = page.evaluate("() => { const r = window.__creatureRig; return r.baseClips.map((n) => [n, r.actions.get(n) ? r.actions.get(n).isRunning() : null, r.actions.get(n) ? +r.actions.get(n).getEffectiveWeight().toFixed(2) : null]); }")
-                page.screenshot(path=f"{out}/img/{sp}-walk.png", clip=crop)
+                page.screenshot(path=f"{out}/img/{sp}-walk.png")
+                page.evaluate("() => { window.__creatureRig.cancelMove(); window.__worldHandle.play('idle'); }")
+                time.sleep(0.3)
                 # Sleep
                 page.evaluate("() => window.__worldHandle.play('sleep')")
                 time.sleep(1.6)
@@ -154,7 +220,7 @@ def run_shard(shard, workers, species, out, base, viewport, crop):
                     "clips": page.evaluate("() => window.__creatureRig.baseClips"),
                     "vsIdle": delta(a, e),
                 }
-                page.screenshot(path=f"{out}/img/{sp}-sleep.png", clip=crop)
+                page.screenshot(path=f"{out}/img/{sp}-sleep.png", clip=shot)
                 page.evaluate("() => window.__worldHandle.play('idle')")
                 time.sleep(0.6)
                 # Cry: the clip action should be running right after the call.
@@ -191,6 +257,7 @@ def main():
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--only", default="")
     ap.add_argument("--cache", default=".cobblemon-cache")
+    ap.add_argument("--force", action="store_true", help="redo species that already have a json file")
     args = ap.parse_args()
     os.makedirs(f"{args.out}/json", exist_ok=True)
     os.makedirs(f"{args.out}/img", exist_ok=True)
@@ -201,7 +268,7 @@ def main():
             species = sorted(json.load(fh)["species"].keys())
     viewport = {"width": 360, "height": 640}
     crop = {"x": 30, "y": 150, "width": 300, "height": 360}
-    procs = [Process(target=run_shard, args=(k, args.workers, species, args.out, args.base, viewport, crop)) for k in range(args.workers)]
+    procs = [Process(target=run_shard, args=(k, args.workers, species, args.out, args.base, viewport, crop, args.force)) for k in range(args.workers)]
     for p in procs:
         p.start()
     for p in procs:

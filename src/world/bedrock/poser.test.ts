@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import cubePoser from "../fixtures/cube.poser.json";
 import cubeAnim from "../fixtures/cube.animation.json";
-import { clipNameFromExpression, parsePoserCall, proceduralFromExpression, readPoser, resolveActivity } from "./poser";
+import { clipNameFromExpression, parsePoserCall, poseApplies, proceduralFromExpression, readPoser, resolveActivity } from "./poser";
 import type { BedrockAnimationFile, PoserFile } from "./types";
 
 const poser = cubePoser as unknown as PoserFile;
@@ -166,6 +166,33 @@ describe("clips the poser leaves out", () => {
     expect(map.cry).toBe("animation.absol.battle_cry");
     expect(map.faint).toBeUndefined();
     expect(map.poses.sleep).toBeUndefined();
+  });
+});
+
+describe("pose conditions", () => {
+  // Ursaring's poser, trimmed: the riding jump is listed first and typed WALK, STAND and NONE.
+  const ursaring: PoserFile = {
+    poses: {
+      "in-air": { animations: ["q.bedrock('ursaring', 'ride_jump')"], condition: "q.in_air && q.is_ridden", poseTypes: ["WALK", "STAND", "NONE"] },
+      run: { animations: ["q.bedrock('ursaring', 'ground_run')"], condition: "!q.in_air && q.is_sprinting", poseTypes: ["WALK"] },
+      standing: { animations: ["q.bedrock('ursaring', 'ground_idle')"], condition: "q.has_entity ? !q.in_air : 1.0", poseTypes: ["STAND", "NONE"] },
+      walking: { animations: ["q.bedrock('ursaring', 'ground_walk')"], condition: "!q.in_air && !q.is_sprinting", poseTypes: ["WALK", "SWIM"] },
+    },
+  };
+  const clips = ["animation.ursaring.ride_jump", "animation.ursaring.ground_run", "animation.ursaring.ground_idle", "animation.ursaring.ground_walk"];
+  it("skips riding, sprinting and mid-air poses for a grounded pokemon", () => {
+    const map = readPoser(ursaring, clips);
+    expect(map.poses.idle?.clips).toEqual(["animation.ursaring.ground_idle"]);
+    expect(map.poses.walk?.clips).toEqual(["animation.ursaring.ground_walk"]);
+  });
+  it("keeps a conditioned pose when nothing else carries the type", () => {
+    const only: PoserFile = { poses: { "in-air": ursaring.poses!["in-air"] } };
+    expect(readPoser(only, clips).poses.idle?.clips).toEqual(["animation.ursaring.ride_jump"]);
+  });
+  it("treats a condition it cannot read as holding", () => {
+    expect(poseApplies({ condition: "q.riding_style == 'swim'" })).toBe(true);
+    expect(poseApplies({ condition: "q.is_sprinting" })).toBe(false);
+    expect(poseApplies({})).toBe(true);
   });
 });
 

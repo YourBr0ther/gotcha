@@ -30,6 +30,8 @@ export interface MolangContext {
    * pass `Math.random` so every spark lands somewhere new.
    */
   random?: () => number;
+  /** `q.*` / `query.*` lookups by name without the prefix, for pose conditions (`in_air`, `is_ridden`). Unlisted queries stay unsupported. */
+  queries?: Record<string, number>;
 }
 
 type Node =
@@ -256,6 +258,10 @@ function readVar(name: string, ctx: MolangContext): number {
   if (dot > 0) {
     const prefix = name.slice(0, dot);
     const key = name.slice(dot + 1);
+    if ((prefix === "q" || prefix === "query") && ctx.queries) {
+      const v = ctx.queries[key];
+      if (v !== undefined) return v;
+    }
     if (prefix === "variable" || prefix === "v" || prefix === "temp" || prefix === "t") {
       const v = ctx.vars?.[key];
       if (v !== undefined) return v;

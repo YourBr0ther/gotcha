@@ -10,7 +10,43 @@
  * one-shot clips the creature plays now and then on top of everything.
  */
 
+import { evaluateMolang, MolangUnsupported } from "./molang";
 import type { PoserFile, PoserPose } from "./types";
+
+/**
+ * What the world is, as far as a pose condition can ask: a pokemon that is
+ * on the ground, not ridden, not sprinting, not gliding, with an entity
+ * behind it. 573 poses in the pack carry a condition, and without this
+ * Ursaring idled in its riding jump and 124 other species picked a
+ * sprint, mount or mid-air pose for standing or walking.
+ */
+const POSE_QUERIES: Record<string, number> = {
+  has_entity: 1,
+  in_air: 0,
+  is_air: 0,
+  is_flying: 0,
+  is_gliding: 0,
+  is_ridden: 0,
+  is_sprinting: 0,
+  is_standing_on_blocks: 1,
+  in_battle: 0,
+  is_battling: 0,
+  is_dormant: 0,
+  riding_style: 0,
+  horizontal_velocity: 0,
+};
+
+/** True when a pose's condition holds in this world, or it has none. A condition the interpreter cannot read counts as holding. */
+export function poseApplies(pose: PoserPose): boolean {
+  const condition = pose.condition;
+  if (typeof condition !== "string" || condition.trim() === "") return true;
+  try {
+    return evaluateMolang(condition, { animTime: 0, lifeTime: 0, queries: POSE_QUERIES }) !== 0;
+  } catch (err) {
+    if (err instanceof MolangUnsupported) return true;
+    throw err;
+  }
+}
 
 /**
  * `float` and `hover` are the resting poses in water and in the air; the
@@ -257,7 +293,12 @@ export function readPoser(poser: PoserFile, availableClips?: Iterable<string>): 
   const isBattle = (p: PoserPose) => p.isBattle === true || (p.isBattle as unknown) === "true";
   for (const activity of ACTIVITIES) {
     for (const type of POSE_TYPES[activity]) {
-      const typed = list.filter((p) => p.poseTypes?.includes(type));
+      const all = list.filter((p) => p.poseTypes?.includes(type));
+      // A pose whose condition fails (riding, sprinting, mid-jump) is skipped
+      // while another of the type applies; with no applicable pose, the
+      // conditioned ones are better than nothing.
+      const applicable = all.filter(poseApplies);
+      const typed = applicable.length ? applicable : all;
       const pose = typed.find((p) => !isBattle(p)) ?? typed[0];
       if (!pose) continue;
       const stack = buildStack(animationExpressions(pose.animations), available);
