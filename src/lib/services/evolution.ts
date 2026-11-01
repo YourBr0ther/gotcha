@@ -33,23 +33,35 @@ export async function evolve(db: Db, trainer: TrainerRow, pokemonId: string, int
     const record = await getSpecies(row.identity.species);
     const bagRows = await tx.select({ itemId: schema.bag.itemId, qty: schema.bag.qty }).from(schema.bag).where(eq(schema.bag.trainerId, trainer.id)).for("update");
     const bag = bagRows.filter((b) => b.qty > 0).map((b) => b.itemId);
-    const rule = evolutionOptions(row.stats, speciesFacts(record), { heldItem: row.inventory.heldItem, bag }, now).find((r) => r.to === to);
+    // The locked bag rows are the only inventory that counts here: a held item
+    // would satisfy the rule without anything to take from the bag.
+    const rule = evolutionOptions(row.stats, speciesFacts(record), { heldItem: null, bag }, now).find((r) => r.to === to);
     if (!rule) throw new ServiceError("cannot_evolve", `${displayName(row)} cannot evolve into ${to} right now`);
     const target = await getSpecies(to);
     if (rule.trigger === "item" && rule.item) {
       // A stone is used up; the link cable for a trade evolution is a tool and stays.
-      await tx
+      const taken = await tx
         .update(schema.bag)
         .set({ qty: sql`${schema.bag.qty} - 1` })
-        .where(sql`${schema.bag.trainerId} = ${trainer.id} and ${schema.bag.itemId} = ${rule.item}`);
+        .where(sql`${schema.bag.trainerId} = ${trainer.id} and ${schema.bag.itemId} = ${rule.item} and ${schema.bag.qty} > 0`)
+        .returning({ itemId: schema.bag.itemId });
+      if (taken.length !== 1) throw new ServiceError("item_not_in_bag", `no ${rule.item} in the bag`);
     }
     const from = row.identity.species;
     const identity = { ...row.identity, species: target.species, nationalDex: target.nationalDex };
     const stats = evolvedStats(row.stats);
     const pokedex = pokedexSnapshot(target, now);
     const history = { ...row.history, milestones: [...row.history.milestones, { at: now, kind: "evolution", detail: `${from} -> ${target.species}` }] };
-    const bytes = milestoneBonus("evolution");
-    const balance = await adjustBytes(tx, trainer.id, bytes, "milestone", `${row.id}:evolution:${now}`);
+    // The milestone pays once per pokemon and target, so a file that leaves
+    // and comes back cannot be evolved for Bytes again.
+    const ref = `${row.id}:evolution:${target.species}`;
+    const paid = await tx
+      .select({ id: schema.ledger.id })
+      .from(schema.ledger)
+      .where(sql`${schema.ledger.trainerId} = ${trainer.id} and ${schema.ledger.reason} = 'milestone' and ${schema.ledger.ref} = ${ref}`)
+      .limit(1);
+    const bytes = paid.length ? 0 : milestoneBonus("evolution");
+    const balance = await adjustBytes(tx, trainer.id, bytes, "milestone", ref);
     await tx.update(schema.pokemon).set({ identity, stats, pokedex, history, updatedAt: now }).where(eq(schema.pokemon.id, row.id));
     const updated: PokemonRow = { ...row, identity, stats, pokedex, history };
     const events: EngineEvent[] = [{ kind: "milestone", at: now, detail: `evolution:${from}:${target.species}` }];

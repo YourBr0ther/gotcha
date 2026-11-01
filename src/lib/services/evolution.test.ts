@@ -51,6 +51,23 @@ describe("evolve", () => {
     expect(events.some((e) => e.summary === "Vee evolved from Eevee into Flareon")).toBe(true);
   });
 
+  it("pays the milestone once per pokemon and target, and never spends a stone it does not have", async () => {
+    const trainer = await giveBytes(t.db, await makeTrainer(t.db, "eli"), 1000);
+    const row = await insertPokemon(t.db, trainer, { slot: 1, active: true });
+    await t.db.insert(schema.ledger).values({ trainerId: trainer.id, delta: 150, reason: "milestone", ref: `${row.id}:evolution:flareon` });
+    // A held stone satisfies the engine's rule, but the bag is what the service takes from.
+    await t.db
+      .update(schema.pokemon)
+      .set({ inventory: { ...row.inventory, heldItem: "fire_stone" } })
+      .where(eq(schema.pokemon.id, row.id));
+    await expect(evolve(t.db, trainer, row.id, "flareon", T0)).rejects.toMatchObject({ code: "cannot_evolve" });
+    await purchase(t.db, trainer.id, "fire_stone", 1);
+    const outcome = await evolve(t.db, trainer, row.id, "flareon", T0);
+    expect(outcome.bytes).toBe(0);
+    expect(outcome.balance).toBe(1000 - storeItem("fire_stone")!.price);
+    expect(outcome.view.species).toBe("flareon");
+  });
+
   it("asks by level, and a no keeps the ask away for the snooze or for good", async () => {
     const trainer = await makeTrainer(t.db, "eli");
     const row = await insertPokemon(t.db, trainer, { species: "charmander", slot: 1, active: true });
