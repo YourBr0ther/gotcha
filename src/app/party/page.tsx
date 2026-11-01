@@ -102,10 +102,10 @@ export default function PartyPage() {
                             Make {p.name} active
                           </button>
                         ) : null}
-                        <button type="button" aria-label={`Move ${p.name} up`} disabled={busy || i === 0} onClick={() => move(i, i - 1)} className="flex items-center justify-center rounded-md text-ink-dim hover:bg-white/10" style={{ minHeight: 28 }}>
+                        <button type="button" aria-label={`Move ${p.name} up`} disabled={busy || i === 0} onClick={() => move(i, i - 1)} className="flex h-9 w-10 items-center justify-center rounded-md text-ink-dim hover:bg-white/10" style={{ minHeight: 36 }}>
                           <PixelIcon name="arrowLeft" size={16} style={{ transform: "rotate(90deg)" }} />
                         </button>
-                        <button type="button" aria-label={`Move ${p.name} down`} disabled={busy || i === party.party.length - 1} onClick={() => move(i, i + 1)} className="flex items-center justify-center rounded-md text-ink-dim hover:bg-white/10" style={{ minHeight: 28 }}>
+                        <button type="button" aria-label={`Move ${p.name} down`} disabled={busy || i === party.party.length - 1} onClick={() => move(i, i + 1)} className="flex h-9 w-10 items-center justify-center rounded-md text-ink-dim hover:bg-white/10" style={{ minHeight: 36 }}>
                           <PixelIcon name="arrowRight" size={16} style={{ transform: "rotate(90deg)" }} />
                         </button>
                       </span>

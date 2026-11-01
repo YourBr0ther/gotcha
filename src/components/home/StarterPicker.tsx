@@ -67,7 +67,7 @@ export function StarterPicker({ open, onPicked, onClose }: Props) {
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Choose your first pokemon" dim footer={<Footer nickname={nickname} setNickname={setNickname} chosenName={chosenName} busy={busy} pick={() => void pick()} />}>
+    <Sheet open={open} onClose={onClose} title="Choose your first pokemon" dim tall footer={<Footer nickname={nickname} setNickname={setNickname} chosenName={chosenName} busy={busy} pick={() => void pick()} />}>
       <p className="mb-3 text-sm text-ink-dim">It will live in the meadow and wait for you. Pick one that feels like a friend.</p>
       <label className="mb-3 block">
         <span className="sr-only">Search species</span>
@@ -101,7 +101,7 @@ export function StarterPicker({ open, onPicked, onClose }: Props) {
                   onClick={() => setChosen(s.id)}
                   className={`flex h-full w-full flex-col items-center gap-1.5 rounded-[12px] px-2 py-3 text-center transition ${selected ? "bg-need-happiness/25 ring-2 ring-need-happiness" : "bg-white/8 hover:bg-white/14"}`}
                 >
-                  <PixelIcon name="pokeball" size={28} />
+                  <StarterFace s={s} />
                   <span className="text-sm font-bold leading-tight">{s.name}</span>
                   <span className="flex flex-wrap justify-center gap-1">
                     {s.types.map((t) => (
@@ -115,6 +115,22 @@ export function StarterPicker({ open, onPicked, onClose }: Props) {
         </ul>
       )}
     </Sheet>
+  );
+}
+
+/** The species' portrait from the render audit, or the ball when the install has none for it. */
+function StarterFace({ s }: { s: StarterSpecies }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) {
+    return (
+      <span className="flex h-11 w-11 items-center justify-center">
+        <PixelIcon name="pokeball" size={28} />
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- portraits come from the data volume, not next/image.
+    <img src={`/api/assets/portraits/${s.id}`} alt="" width={44} height={44} loading="lazy" decoding="async" onError={() => setBroken(true)} className="h-11 w-11 rounded-lg bg-white/10 object-cover" />
   );
 }
 

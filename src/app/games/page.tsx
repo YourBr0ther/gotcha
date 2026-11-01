@@ -17,8 +17,8 @@ export default function GamesPage() {
           <li key={g.id}>
             <Link href={g.href} className="card tap flex h-full flex-col items-center gap-2 px-3 py-4 text-center hover:bg-white/10">
               <PixelIcon name={g.icon ?? "games"} size={40} />
-              <span className="text-base font-extrabold">{g.title}</span>
-              <span className="text-xs text-ink-dim">{g.tagline}</span>
+              <span className="flex min-h-10 items-center text-base font-extrabold leading-tight">{g.title}</span>
+              <span className="flex-1 text-xs text-ink-dim">{g.tagline}</span>
               {g.seconds ? <span className="font-pixel text-[10px] text-ink-faint">~{g.seconds}s</span> : null}
             </Link>
           </li>
@@ -26,8 +26,8 @@ export default function GamesPage() {
         {upcoming.map((g) => (
           <li key={g.id} className="card flex h-full flex-col items-center gap-2 px-3 py-4 text-center opacity-75" aria-label={`${g.title}, coming soon`}>
             <PixelIcon name={g.icon ?? "games"} size={40} className="opacity-70" />
-            <span className="text-base font-extrabold">{g.title}</span>
-            <span className="text-xs text-ink-dim">{g.tagline}</span>
+            <span className="flex min-h-10 items-center text-base font-extrabold leading-tight">{g.title}</span>
+            <span className="flex-1 text-xs text-ink-dim">{g.tagline}</span>
             <span className="rounded-md bg-white/10 px-2 py-0.5 font-pixel text-[10px] uppercase tracking-wider">Coming soon</span>
           </li>
         ))}

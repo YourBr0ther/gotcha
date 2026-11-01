@@ -64,7 +64,7 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 - [x] Payout curve with a daily cap
 - [x] Berry catch, whack-a-Diglett, type-match memory
 - [ ] Rhythm rock smash, fishing
-- [x] The active pokemon reacting to wins and losses (portrait from the texture; a real sprite is owed)
+- [x] The active pokemon reacting to wins and losses, with a portrait cut from the render audit's idle frame (`scripts/portraits.py`); the texture crop is the fallback on an install without portraits
 
 ## Milestone 7, deploy
 

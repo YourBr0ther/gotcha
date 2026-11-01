@@ -10,7 +10,7 @@ import type { NeedName } from "@gotcha/cpkmn";
 export function NameCard({ view }: { view: PokemonView }) {
   const g = genderGlyph(view.gender);
   return (
-    <div className="card flex w-[196px] items-center gap-2.5 px-2.5 py-2">
+    <div className="card flex w-[clamp(150px,48vw,196px)] items-center gap-2.5 px-2.5 py-2 short:py-1.5">
       <PixelIcon name="pokeball" size={38} />
       <div className="flex min-w-0 flex-col">
         <div className="flex items-center gap-1.5">
@@ -48,7 +48,7 @@ export type Deltas = Partial<Record<NeedName, number>>;
 
 export function MetersCard({ view, deltas }: { view: PokemonView; deltas: Deltas }) {
   return (
-    <div className="card flex w-[196px] flex-col gap-2 px-2.5 py-2.5">
+    <div className="card flex w-[clamp(150px,48vw,196px)] flex-col gap-2 px-2.5 py-2.5 short:gap-1.5 short:py-2">
       {HUD_METERS.map((m) => {
         const value = Math.max(0, Math.min(100, view.needs[m.need]));
         const delta = deltas[m.need];

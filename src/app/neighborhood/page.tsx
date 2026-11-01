@@ -36,10 +36,14 @@ export default function NeighborhoodPage() {
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="text-base font-extrabold">{t.name}</span>
                 {t.activePokemon ? (
-                  <span className="truncate text-xs text-ink-dim">
-                    {t.activePokemon.name} the {titleCase(t.activePokemon.species)}, Lv. {t.activePokemon.level},{" "}
-                    {t.activePokemon.asleep ? "asleep" : (MOOD_FACE[t.activePokemon.mood] ?? t.activePokemon.mood)} in the {t.activePokemon.diorama}
-                  </span>
+                  <>
+                    <span className="text-xs text-ink-dim">
+                      {t.activePokemon.name} the {titleCase(t.activePokemon.species)}, Lv. {t.activePokemon.level}
+                    </span>
+                    <span className="text-xs text-ink-faint">
+                      {t.activePokemon.asleep ? "Asleep" : titleCase(MOOD_FACE[t.activePokemon.mood] ?? t.activePokemon.mood)} in the {t.activePokemon.diorama}
+                    </span>
+                  </>
                 ) : (
                   <span className="text-xs text-ink-faint">No pokemon at home</span>
                 )}

@@ -106,7 +106,7 @@ export default function PcPage() {
           <>
             <label className="tap inline-flex cursor-pointer items-center gap-2 rounded-[12px] bg-white/10 px-3 text-sm font-bold hover:bg-white/16">
               <PixelIcon name="bag" size={18} />
-              Import .cpkmn
+              Import a pokemon file
               <input ref={file} type="file" accept=".cpkmn,application/vnd.gotcha.cpkmn,application/zip" className="sr-only" onChange={(e) => void onImport(e.target.files?.[0])} />
             </label>
           </>

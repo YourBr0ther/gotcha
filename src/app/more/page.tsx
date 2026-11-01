@@ -9,7 +9,7 @@ import { get, type Me } from "@/components/lib/api";
 
 const LINKS: Array<{ href: string; label: string; text: string; icon: PixelIconName }> = [
   { href: "/neighborhood", label: "Neighborhood", text: "Everyone's pokemon at home", icon: "tree" },
-  { href: "/pokedex", label: "Pokedex", text: "Every species you have met", icon: "book" },
+  { href: "/pokedex", label: "Pokedex", text: "Every species you have met", icon: "pokeball" },
   { href: "/journal", label: "Journal", text: "What your pokemon remembers", icon: "book" },
   { href: "/settings", label: "Settings", text: "Timezone and the install", icon: "stone" },
 ];

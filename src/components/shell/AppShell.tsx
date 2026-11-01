@@ -68,6 +68,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className={`relative min-w-0 flex-1 md:pl-56 ${isHome ? "" : "pb-[calc(var(--spacing-tab)+var(--spacing-safe-bottom))] md:pb-0"}`}>{children}</main>
 
+      <div className="rotate-card" role="status">
+        <div className="card flex items-center gap-3 px-4 py-3">
+          <PixelIcon name="pokeball" size={28} />
+          <span className="font-pixel text-sm">Turn your phone upright</span>
+        </div>
+      </div>
+
       {isHome ? null : (
         <nav
           aria-label="Sections"

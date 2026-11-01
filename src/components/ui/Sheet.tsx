@@ -15,6 +15,8 @@ interface Props {
   footer?: ReactNode;
   /** Dims the world behind the sheet. Off for care sheets so the pokemon stays visible. */
   dim?: boolean;
+  /** Up to 80% of the screen on a phone instead of 60%, for a sheet that is the whole task, like the starter picker. */
+  tall?: boolean;
 }
 
 /**
@@ -22,7 +24,7 @@ interface Props {
  * the pokemon visible above it, closes on backdrop tap and Escape, and
  * returns focus to where it was opened from.
  */
-export function Sheet({ open, onClose, title, aside, children, footer, dim = false }: Props) {
+export function Sheet({ open, onClose, title, aside, children, footer, dim = false, tall = false }: Props) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
@@ -59,8 +61,8 @@ export function Sheet({ open, onClose, title, aside, children, footer, dim = fal
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="sheet-enter card card-strong relative flex w-full max-w-lg flex-col rounded-b-none md:rounded-b-[12px] outline-none"
-        style={{ maxHeight: "80dvh", paddingBottom: "var(--spacing-safe-bottom)" }}
+        className={`sheet-enter card card-strong relative flex w-full max-w-lg flex-col rounded-b-none md:rounded-b-[12px] outline-none ${tall ? "max-h-[80dvh]" : "max-h-[60dvh] md:max-h-[80dvh]"}`}
+        style={{ paddingBottom: "var(--spacing-safe-bottom)" }}
       >
         <div className="flex items-center gap-2 px-4 pt-3 pb-2">
           <div className="mx-auto h-1 w-10 rounded-full bg-white/25 md:hidden" aria-hidden="true" style={{ position: "absolute", top: 6, left: "50%", transform: "translateX(-50%)" }} />
@@ -69,7 +71,7 @@ export function Sheet({ open, onClose, title, aside, children, footer, dim = fal
           </h2>
           <div className="ml-auto flex items-center gap-2">
             {aside}
-            <button type="button" onClick={onClose} aria-label="Close" className="flex items-center justify-center rounded-lg text-ink-dim hover:bg-white/10">
+            <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-ink-dim hover:bg-white/10">
               <PixelIcon name="close" size={16} />
             </button>
           </div>

@@ -42,12 +42,12 @@ export function DialogueBox({ speaker, text, onDone, tag }: Props) {
     <button
       type="button"
       onClick={() => (complete ? onDone() : setShown(text.length))}
-      className="card card-strong w-full max-w-lg px-4 py-3 text-left"
+      className="card card-strong w-full max-w-lg px-4 py-3 text-left short:py-2"
       aria-live="polite"
       style={{ minHeight: 64 }}
     >
       <span className="block font-pixel text-[11px] uppercase tracking-wider text-ink-dim">{speaker}</span>
-      <span className="font-pixel block text-[15px] leading-relaxed">
+      <span className="font-pixel block text-[15px] leading-relaxed short:text-[13px]">
         {text.slice(0, shown)}
         {complete ? <span className="ml-1 inline-block animate-pulse">{"▼"}</span> : null}
       </span>

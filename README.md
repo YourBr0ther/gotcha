@@ -84,6 +84,11 @@ pnpm pokedex:build                         # about 9 minutes the first time, 1 s
 pnpm dev
 ```
 
+Portraits for the starter picker and the mini-games come from the render
+audit's idle frames: run `scripts/species-render-audit.py` once, then
+`python3 -I scripts/portraits.py <audit>/render/img .pokedex-cache/portraits`.
+Without them the lists fall back to a pokeball and a texture crop.
+
 Open http://localhost:3000 on a phone-sized window. In development the
 `GOTCHA_DEV_USER` value in `.env` stands in for the proxy header; change it
 to act as a second trainer.

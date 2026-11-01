@@ -67,6 +67,9 @@ function FacePortrait({ face, dim }: { face: FaceSprite; dim: boolean }) {
  */
 export function Reaction({ species, name, tier, seed = 0 }: { species: string; name: string; tier: ReactionTier; seed?: number }) {
   const [broken, setBroken] = useState(false);
+  // The render audit's portrait first; an install without one crops the texture instead.
+  const [portrait, setPortrait] = useState<{ species: string; ok: boolean }>({ species, ok: true });
+  const usePortrait = portrait.species === species ? portrait.ok : true;
   // Keyed by species so a stale answer never shows on another pokemon;
   // undefined while the geometry loads, null when it has no usable head.
   const [found, setFound] = useState<{ species: string; face: FaceSprite | null } | null>(null);
@@ -87,7 +90,18 @@ export function Reaction({ species, name, tier, seed = 0 }: { species: string; n
   return (
     <div className="flex items-center gap-3" aria-label={`${name} says ${line}`}>
       <div className={`relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 shadow-[inset_0_0_0_2px_var(--color-card-edge)] ${tier === "perfect" ? "bob" : ""}`}>
-        {broken ? (
+        {usePortrait ? (
+          // eslint-disable-next-line @next/next/no-img-element -- portraits come from the data volume, not next/image.
+          <img
+            src={`/api/assets/portraits/${species}`}
+            alt=""
+            width={80}
+            height={80}
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ filter: tier === "meh" ? "saturate(0.7)" : undefined }}
+            onError={() => setPortrait({ species, ok: false })}
+          />
+        ) : broken ? (
           <PixelIcon name="pokeball" size={56} className="absolute left-3 top-3" />
         ) : face ? (
           <FacePortrait face={face} dim={tier === "meh"} />
