@@ -199,6 +199,9 @@ export const MINIGAME_FLOOR = 0.1;
 /** Mini-games never pay more than this in a day. */
 export const MINIGAME_DAILY_CAP = 120;
 
+/** "Not now" on an evolution keeps the question away this long. */
+export const EVOLUTION_SNOOZE = 3 * DAY;
+
 export const MILESTONE_BYTES = {
   level_up: 25,
   evolution: 150,

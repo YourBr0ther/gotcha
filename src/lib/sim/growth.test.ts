@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ExperienceGroup } from "@gotcha/cpkmn";
-import { ACTIVE_EXPERIENCE_PER_HOUR, FRIENDSHIP_MAX, FRIENDSHIP_TIERS, HOUR, MAX_LEVEL } from "./constants";
+import { ACTIVE_EXPERIENCE_PER_HOUR, EVOLUTION_SNOOZE, FRIENDSHIP_MAX, FRIENDSHIP_TIERS, HOUR, MAX_LEVEL } from "./constants";
 import { freshStats } from "./defaults";
-import { activeTimeExperience, addExperience, adjustFriendship, evolutionOptions, experienceForLevel, experienceToLevel, friendshipDelta } from "./growth";
+import { activeTimeExperience, addExperience, adjustFriendship, declineEvolution, evolutionOptions, evolutionProspects, evolvedStats, experienceForLevel, experienceToLevel, friendshipDelta } from "./growth";
 import { expectPure } from "./testing";
 import type { EvolutionRule, SpeciesFacts } from "./types";
 
@@ -119,5 +119,38 @@ describe("evolutionOptions", () => {
     const earlier = new Date(Date.parse(NOW) - HOUR).toISOString();
     expect(evolutionOptions({ ...ready, evolution: { blocked: false, declinedUntil: later, stage: 1 } }, species, bag, NOW)).toEqual([]);
     expect(evolutionOptions({ ...ready, evolution: { blocked: false, declinedUntil: earlier, stage: 1 } }, species, bag, NOW)).toHaveLength(1);
+  });
+});
+
+describe("evolution prospects", () => {
+  const facts: SpeciesFacts = {
+    species: "test",
+    experienceGroup: "medium_fast",
+    evolutions: [
+      { to: "charmeleon", trigger: "level", minLevel: 16 },
+      { to: "flareon", trigger: "item", item: "fire_stone" },
+      { to: "espeon", trigger: "friendship", minFriendship: 160 },
+      { to: "machamp", trigger: "trade", minLevel: 30 },
+    ],
+  };
+
+  it("asks about rules whose level and friendship hold, and names item and trade rules without the item", () => {
+    const stats = { ...freshStats(), level: 16, friendship: 100 };
+    expect(evolutionProspects(stats, facts, NOW).map((r) => r.to)).toEqual(["charmeleon", "flareon"]);
+    const friendly = { ...stats, friendship: 160, level: 30 };
+    expect(evolutionProspects(friendly, facts, NOW).map((r) => r.to)).toEqual(["charmeleon", "flareon", "espeon", "machamp"]);
+  });
+
+  it("stays quiet while declined, for the snooze or for good, and clears after an evolution", () => {
+    const stats = { ...freshStats(), level: 20 };
+    const later = new Date(Date.parse(NOW) + EVOLUTION_SNOOZE + 1000).toISOString();
+    const snoozed = declineEvolution(stats, false, NOW);
+    expect(evolutionProspects(snoozed, facts, NOW)).toEqual([]);
+    expect(evolutionProspects(snoozed, facts, later).length).toBeGreaterThan(0);
+    const never = declineEvolution(stats, true, NOW);
+    expect(evolutionProspects(never, facts, later)).toEqual([]);
+    const evolved = evolvedStats(never);
+    expect(evolved.evolution).toEqual({ blocked: false, declinedUntil: null, stage: stats.evolution.stage + 1 });
+    expect(evolved.level).toBe(20);
   });
 });

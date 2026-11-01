@@ -12,6 +12,9 @@ export {
   friendshipDelta,
   adjustFriendship,
   evolutionOptions,
+  evolutionProspects,
+  declineEvolution,
+  evolvedStats,
   type ExperienceResult,
   type EvolutionInventory,
 } from "./growth";

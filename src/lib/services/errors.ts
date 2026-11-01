@@ -16,6 +16,7 @@ export type ServiceErrorCode =
   | "not_in_party"
   | "not_in_pc"
   | "not_home"
+  | "cannot_evolve"
   | "in_transit"
   | "released"
   | "already_present"
@@ -42,6 +43,7 @@ const STATUS: Record<ServiceErrorCode, number> = {
   not_in_party: 409,
   not_in_pc: 409,
   not_home: 409,
+  cannot_evolve: 409,
   in_transit: 409,
   released: 410,
   already_present: 409,

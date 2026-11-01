@@ -5,6 +5,7 @@
  */
 
 import type { PokemonView } from "@/lib/services/views";
+import type { EvolveOutcome } from "@/lib/services/evolution";
 import type { PartyView } from "@/lib/services/party";
 import type { BoxView } from "@/lib/services/pc";
 import type { TrainerSummary } from "@/lib/services/trainers";
@@ -14,7 +15,7 @@ import type { ImportResult } from "@/lib/services/transfer";
 import type { StoreItem, CareAction } from "@/lib/sim";
 import type { Memories, Pokedex } from "@gotcha/cpkmn";
 
-export type { PokemonView, PartyView, BoxView, TrainerSummary, CareOutcome, PurchaseResult, ImportResult, StoreItem, CareAction };
+export type { EvolveOutcome, PokemonView, PartyView, BoxView, TrainerSummary, CareOutcome, PurchaseResult, ImportResult, StoreItem, CareAction };
 
 /**
  * The view may grow a memories and pokedex member later; until the API

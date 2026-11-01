@@ -140,7 +140,12 @@ export function episodicFromEngine(row: Pick<PokemonRow, "id" | "identity" | "po
       break;
     case "milestone":
       kind = "milestone";
-      summary = e.detail === "recovery" ? `${name}'s ${e.need ?? "need"} is back to full after being very low` : `${name} reached a milestone: ${e.detail ?? ""}`;
+      summary =
+        e.detail === "recovery"
+          ? `${name}'s ${e.need ?? "need"} is back to full after being very low`
+          : e.detail?.startsWith("evolution:")
+            ? `${name} evolved from ${titleCase(e.detail.split(":")[1] ?? "")} into ${titleCase(e.detail.split(":")[2] ?? "")}`
+            : `${name} reached a milestone: ${e.detail ?? ""}`;
       importance = 3;
       emotion = "proud";
       break;
@@ -201,4 +206,11 @@ export async function logEngineEvents(tx: DbOrTx, row: Pick<PokemonRow, "id" | "
   const rows = events.map((e) => episodicFromEngine(row, e, trainerId, trainerName)).filter((r): r is NewEventRow => r !== null);
   if (rows.length > 0) await tx.insert(schema.event).values(rows);
   return rows.length;
+}
+
+function titleCase(id: string): string {
+  return id
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }

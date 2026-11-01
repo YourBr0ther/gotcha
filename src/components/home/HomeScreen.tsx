@@ -10,14 +10,16 @@ import type { NeedName } from "@gotcha/cpkmn";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
 import { useToast } from "@/components/ui/Toast";
 import { Button, EmptyState } from "@/components/ui/primitives";
-import { errorText, get, post, shareOrDownload, type BagEntry, type CareOutcome, type Me, type PartyView, type RichView, type StoreItem, type StoreResponse, type Weather } from "@/components/lib/api";
+import { errorText, get, post, shareOrDownload, type BagEntry, type CareOutcome, type EvolveOutcome, type Me, type PartyView, type RichView, type StoreItem, type StoreResponse, type Weather } from "@/components/lib/api";
 import type { JournalView } from "@/lib/services/journal";
 import type { DiscardResult } from "@/lib/services/bag";
 import { hasUnread } from "./journalMark";
+import { titleCase } from "@/components/lib/format";
 import { readLowPower } from "@/components/lib/prefs";
 import { ActionButton, ClockCard, MetersCard, NameCard, SquareButton, type Deltas } from "./Hud";
 import { CareSheet, type CareKind, type CareRequest } from "./CareSheet";
 import { DialogueBox } from "./DialogueBox";
+import { EvolutionPrompt } from "./EvolutionPrompt";
 import { MenuButton } from "./MenuButton";
 import { Microphone, type TalkReply } from "./Microphone";
 import { StarterPicker } from "./StarterPicker";
@@ -307,6 +309,44 @@ export function HomeScreen() {
     [toast],
   );
 
+  // The evolution ask: yes swaps the species, which the load effect above
+  // picks up and walks the new form in; no is for now or for good.
+  const evolve = useCallback(
+    async (to: string) => {
+      if (!view) return;
+      setBusy(true);
+      try {
+        const outcome = await post<EvolveOutcome>(`/api/pokemon/${view.id}/evolve`, { to });
+        const next = outcome.view as RichView;
+        setView(next);
+        setMe((m) => (m ? { ...m, bytes: outcome.balance } : m));
+        handleRef.current?.emote("love");
+        toast(`${next.name} evolved into ${titleCase(next.species)}! +${outcome.bytes} Bytes`, "success");
+      } catch (e) {
+        toast(errorText(e), "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [view, toast],
+  );
+  const declineEvolve = useCallback(
+    async (forever: boolean) => {
+      if (!view) return;
+      setBusy(true);
+      try {
+        const r = await post<{ view: RichView }>(`/api/pokemon/${view.id}/evolve`, { decline: forever ? "forever" : "now" });
+        setView(r.view);
+        handleRef.current?.emote(forever ? "sad" : "question");
+      } catch (e) {
+        toast(errorText(e), "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [view, toast],
+  );
+
   const care = useCallback(
     async (req: CareRequest, closeSheet = true) => {
       if (!view || busy) return;
@@ -470,6 +510,11 @@ export function HomeScreen() {
           </div>
 
           <div className="pointer-events-none absolute inset-x-0 flex flex-col items-center gap-3 px-3" style={{ bottom: actionBottom }}>
+            {!view.state.asleep && !dialogue ? (
+              <div className="pointer-events-auto w-full max-w-lg">
+                <EvolutionPrompt view={view} bag={bag} catalog={catalog} busy={busy} onEvolve={(to) => void evolve(to)} onDecline={(forever) => void declineEvolve(forever)} />
+              </div>
+            ) : null}
             <div className="pointer-events-auto w-full max-w-lg">
               <DialogueBox speaker={view.name} text={dialogue?.text ?? null} tag={dialogue?.tag} onDone={() => setDialogue(null)} />
             </div>

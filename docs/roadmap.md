@@ -36,7 +36,7 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 - [x] Store, bag, Bytes ledger, daily stipend
 - [x] Home screen from the concept render: floating HUD, action buttons, care sheets, dialogue box, photo mode
 - [x] Party, PC, Store, Journal, Pokedex, Neighborhood screens
-- [ ] Evolution prompt with the trainer's yes or no
+- [x] Evolution prompt with the trainer's yes or no: the ask sits above the action row when a rule holds, not now snoozes it three days, never blocks it; stones are used up, the milestone pays
 - [x] PWA manifest, icons and service worker (install on a real phone still to be checked)
 
 ## Milestone 4, brain

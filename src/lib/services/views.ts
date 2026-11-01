@@ -5,9 +5,9 @@
  */
 
 import type { Needs, Pokedex, State, Stats } from "@gotcha/cpkmn";
-import { decay, mood, MINUTE, type ActiveModifier, type Mood } from "@/lib/sim";
+import { decay, evolutionProspects, mood, MINUTE, type ActiveModifier, type EvolutionRule, type Mood } from "@/lib/sim";
 import type { PokemonRow, PokemonStatus, TrainerRow } from "@/lib/db/schema";
-import { getSpecies, speciesFacts } from "./species";
+import { getSpecies, listSpecies, speciesFacts } from "./species";
 
 export interface PokemonView {
   id: string;
@@ -30,6 +30,8 @@ export interface PokemonView {
   mood: Mood;
   stats: Stats;
   modifiers: ActiveModifier[];
+  /** Evolutions the pokemon could ask about now; item rules are listed even without the item so the ask can name it. */
+  evolution: { options: EvolutionRule[]; blocked: boolean; declinedUntil: string | null };
   /** The species snapshot the file carries. Memories stay off the view; the journal route serves them. */
   pokedex: Pokedex;
   now: string;
@@ -102,6 +104,8 @@ export async function decayedState(row: PokemonRow, now: string): Promise<{ stat
 export async function pokemonView(row: PokemonRow, trainer: Pick<TrainerRow, "timezone">, now: string): Promise<PokemonView> {
   const record = await getSpecies(row.identity.species);
   const { state } = await decayedState(row, now);
+  // Only an evolution the install can draw is worth asking about.
+  const have = new Set(await listSpecies());
   const m = mood(state, speciesFacts(record), now, { utcOffsetMinutes: utcOffsetMinutes(trainer.timezone, now) });
   return {
     id: row.id,
@@ -124,6 +128,11 @@ export async function pokemonView(row: PokemonRow, trainer: Pick<TrainerRow, "ti
     mood: m,
     stats: row.stats,
     modifiers: liveModifiers(row.modifiers, now),
+    evolution: {
+      options: row.status === "home" ? evolutionProspects(row.stats, speciesFacts(record), now).filter((r) => have.has(r.to)) : [],
+      blocked: row.stats.evolution.blocked,
+      declinedUntil: row.stats.evolution.declinedUntil ?? null,
+    },
     pokedex: row.pokedex,
     now,
   };

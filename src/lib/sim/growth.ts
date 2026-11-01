@@ -5,9 +5,9 @@
  */
 
 import type { ExperienceGroup, IsoDate, Stats } from "@gotcha/cpkmn";
-import { ACTIVE_EXPERIENCE_PER_HOUR, FRIENDSHIP_MAX, FRIENDSHIP_TIERS, HOUR, MAX_LEVEL } from "./constants";
+import { ACTIVE_EXPERIENCE_PER_HOUR, EVOLUTION_SNOOZE, FRIENDSHIP_MAX, FRIENDSHIP_TIERS, HOUR, MAX_LEVEL } from "./constants";
 import type { EngineEvent, EvolutionRule, SpeciesFacts } from "./types";
-import { clamp, parseIso } from "./util";
+import { clamp, parseIso, toIso } from "./util";
 
 /** Total experience at the start of `level`, per the games' formulas. */
 export function experienceForLevel(group: ExperienceGroup, level: number): number {
@@ -116,4 +116,42 @@ export function evolutionOptions(stats: Stats, species: SpeciesFacts, inventory:
         return false;
     }
   });
+}
+
+/**
+ * Evolutions worth asking the trainer about: level and friendship rules
+ * whose conditions hold, and item and trade rules whose level holds, named
+ * even without the item so the ask can say what it needs. Nothing while
+ * the trainer has said never, or not now and the snooze is running.
+ */
+export function evolutionProspects(stats: Stats, species: SpeciesFacts, now: IsoDate): EvolutionRule[] {
+  const nowMs = parseIso(now);
+  if (stats.evolution.blocked) return [];
+  if (stats.evolution.declinedUntil && parseIso(stats.evolution.declinedUntil) > nowMs) return [];
+  return (species.evolutions ?? []).filter((rule) => {
+    if (rule.minLevel !== undefined && stats.level < rule.minLevel) return false;
+    switch (rule.trigger) {
+      case "level":
+        return rule.minLevel !== undefined;
+      case "friendship":
+        return stats.friendship >= (rule.minFriendship ?? FRIENDSHIP_MAX);
+      case "item":
+        return rule.item !== undefined;
+      case "trade":
+        return true;
+      default:
+        return false;
+    }
+  });
+}
+
+/** The trainer said no: for now, asked again after the snooze, or never. */
+export function declineEvolution(stats: Stats, forever: boolean, now: IsoDate): Stats {
+  const evolution = forever ? { ...stats.evolution, blocked: true, declinedUntil: null } : { ...stats.evolution, declinedUntil: toIso(parseIso(now) + EVOLUTION_SNOOZE) };
+  return { ...stats, evolution };
+}
+
+/** Stats after an evolution: one stage up and no snooze left over. Level and experience carry across. */
+export function evolvedStats(stats: Stats): Stats {
+  return { ...stats, evolution: { blocked: false, declinedUntil: null, stage: stats.evolution.stage + 1 } };
 }
