@@ -29,6 +29,8 @@ interface Params {
   demo: "route" | "spot" | "hold";
   diorama: DioramaId;
   ambient: boolean;
+  /** Multiplier on the ambient visit schedule; 0.1 brings the first visitor in under a second. */
+  ambientTempo: number;
   depth: boolean;
 }
 
@@ -44,6 +46,7 @@ function readParams(): Params {
     demo: q.get("demo") === "0" ? "spot" : q.get("demo") === "hold" ? "hold" : "route",
     diorama: isDioramaId(q.get("diorama") ?? "") ? (q.get("diorama") as DioramaId) : "meadow",
     ambient: q.get("ambient") !== "0",
+    ambientTempo: parseFloat(q.get("ambientTempo") ?? "1") || 1,
     depth: q.get("depth") !== "0",
   };
 }
@@ -59,7 +62,9 @@ export default function DevWorld() {
     (handle: WorldHandle) => {
       handleRef.current = handle;
       if (process.env.NODE_ENV !== "production") {
-        (window as unknown as { __worldHandle?: WorldHandle }).__worldHandle = handle;
+        const w = window as unknown as { __worldHandle?: WorldHandle; __ambientTempo?: number };
+        w.__worldHandle = handle;
+        w.__ambientTempo = params.ambientTempo;
       }
       handle.setTimeOfDay(params.hour ?? localHours());
       handle.setAmbient(params.ambient);

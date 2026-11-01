@@ -272,7 +272,8 @@ export class CreatureRig implements CreatureController {
   private procedural: ProceduralStack;
   private activity: Activity = "idle";
   private diorama: DioramaDef;
-  private grid: NavGrid;
+  /** The cells this creature may travel: land, water or both. Read by the ambient wander planner. */
+  grid: NavGrid;
   private path: Array<{ x: number; z: number }> = [];
   private moveResolve: ((ok: boolean) => void) | null = null;
   private arriveFacing: number | undefined;
@@ -660,13 +661,26 @@ export class CreatureRig implements CreatureController {
     this.emoteLeft = EMOTE_SECONDS;
   }
 
-  moveTo(spot: string): Promise<boolean> {
-    const name = resolveSpot(this.diorama.spots, spot, this.locomotion);
-    if (!name) {
-      console.warn(`[world] no spot named ${spot} in ${this.diorama.id}`);
-      return Promise.resolve(false);
+  /**
+   * Travel to a named spot, or to any point given as a Spot. A name goes
+   * through `resolveSpot` (water-only species to water, and so on); a point
+   * is taken as given, which is how the ambient visitors enter from and
+   * leave by the edge of the scene. A flier lands only on a named sleep spot.
+   */
+  moveTo(spot: string | Spot): Promise<boolean> {
+    let target: Spot;
+    let land = false;
+    if (typeof spot === "string") {
+      const name = resolveSpot(this.diorama.spots, spot, this.locomotion);
+      if (!name) {
+        console.warn(`[world] no spot named ${spot} in ${this.diorama.id}`);
+        return Promise.resolve(false);
+      }
+      target = this.diorama.spots[name];
+      land = name.startsWith("sleep");
+    } else {
+      target = spot;
     }
-    const target = this.diorama.spots[name];
     this.cancelMove();
     this.wake();
     this.orbit = null;
@@ -678,7 +692,7 @@ export class CreatureRig implements CreatureController {
       this.medium = "air";
       this.hoverY = spotMedium(target) === "air" && target.y !== undefined ? target.y : this.defaultHoverY();
       this.path = [{ x: target.x, z: target.z }];
-      this.landOnArrival = name.startsWith("sleep");
+      this.landOnArrival = land;
     } else {
       const grid = this.grid;
       const from = nearestWalkable(grid, worldToCell(grid, this.group.position.x, this.group.position.z));
@@ -716,6 +730,18 @@ export class CreatureRig implements CreatureController {
       this.orbitAngle = Math.atan2(this.group.position.z - orbit.z, this.group.position.x - orbit.x);
       this.setActivity("fly");
     }
+  }
+
+  /**
+   * Fade the whole creature. Ambient visitors arrive and leave through this;
+   * at 1 the material goes back to opaque so it sorts with the scene again.
+   */
+  setOpacity(opacity: number): void {
+    const material = this.loaded.material;
+    const o = Math.max(0, Math.min(1, opacity));
+    material.opacity = o;
+    material.transparent = o < 1;
+    this.group.visible = o > 0;
   }
 
   cancelMove(): void {

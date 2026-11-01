@@ -150,12 +150,13 @@ The pokemon's habitat (from Cobblemon spawn data and PokeAPI habitat) sets
 which dioramas it prefers and which it can visit at all. A Magikarp does not
 go to the cave.
 
-Each diorama has ambient wild pokemon as set dressing: a Butterfree over the
-stream, a Pidgey on a rock. They use the same loader and idle clips, follow
-simple scripted paths, have no brain and no needs, and are picked from the
-species that spawn in that biome. The active pokemon can notice them (the
-brain gets them as context) which is a cheap way to make the world feel
-inhabited.
+Each diorama has wild pokemon passing through as set dressing: a Butterfree
+crossing the sky, a Pidgey pecking at the edge of the meadow. One at a time,
+and often none; each scene keeps a small daily cast drawn from the species
+that spawn in its biome, and a visitor arrives at the edge, wanders a route
+of its own, and leaves. They use the same loader and clips, have no brain
+and no needs. The active pokemon can notice them (the brain gets them as
+context) which is a cheap way to make the world feel inhabited.
 
 The clock and weather widget shows the trainer's local time. Weather is
 real if the owner sets `OPEN_METEO_LAT` and `OPEN_METEO_LON` (Open-Meteo,
@@ -283,6 +284,24 @@ has it: still idle poses (273 species), walking with the idle clip (about
 140, the game slides them too), posers naming leg bones the model lacks,
 sound-only cry clips, and literal `NaN` or typo expressions, which read as
 zero with one warning.
+
+**Wild pokemon visit; they do not live there.** The first ambient pass kept
+the same two species in every scene forever, one circling and one pacing
+between two spots, and on a phone they were mostly off screen: the portrait
+camera sees a narrow wedge behind the subject, and the subject's own body
+hides the strip of ground straight behind it all the way to the backdrop.
+Now a scene keeps a daily cast of six species (seeded by scene and date, at
+most two fliers, legendaries and mythicals filtered out), and one visitor at
+a time comes and goes: it fades in at the rim of its grid, wanders for half a
+minute between random cells and the forage spots, and leaves, with a minute
+or so between visits. Ground routes stay on the two visible flanks of the
+wedge, which is what a phone can actually show; fliers keep to the open sky
+in front of the trees, either circling at a random spot or crossing the
+scene. The depth of field was widened so a visitor at that distance stays
+readable. Every number in a route comes from the random source, so no two
+visits look alike. Rejected: more than one visitor at once (it reads as a
+zoo and costs draw calls on a phone) and a visitor per diorama spot (a
+settled population reads as furniture).
 
 ## Milestones
 

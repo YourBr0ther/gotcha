@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { pickAmbient, type AmbientCandidate } from "./candidates";
-import { ambientLoadable, pickLoadableAmbient, type AmbientManifest, type AmbientResolver } from "./loadable";
+import { beforeEach, describe, expect, it } from "vitest";
+import { mulberry32 } from "../dioramas/build";
+import type { AmbientPick } from "./candidates";
+import { ambientLoadable, type AmbientManifest, type AmbientResolver, chooseVisitor, resetAmbientProbes } from "./loadable";
 
 const manifest: AmbientManifest = {
   models: { eevee_male: "models/eevee_male.geo.json", eevee_female: "models/eevee_female.geo.json" },
@@ -51,41 +52,44 @@ describe("ambientLoadable", () => {
   });
 });
 
-const pool: AmbientCandidate[] = [
-  { species: "pidgey", baseScale: 0.7, flies: true, swims: false, walks: true },
-  { species: "butterfree", baseScale: 0.6, flies: true, swims: false, walks: false },
-  { species: "eevee", baseScale: 0.5, flies: false, swims: false, walks: true },
-  { species: "rattata", baseScale: 0.4, flies: false, swims: true, walks: true },
-  { species: "golurk", baseScale: 1, flies: false, swims: false, walks: true },
+const cast: AmbientPick[] = [
+  { species: "pidgey", role: "flier" },
+  { species: "butterfree", role: "flier" },
+  { species: "eevee", role: "walker" },
+  { species: "rattata", role: "walker" },
+  { species: "golurk", role: "walker" },
 ];
 
-describe("pickLoadableAmbient", () => {
-  it("keeps the plain pick when every species probes fine, probing each once", async () => {
+describe("chooseVisitor", () => {
+  beforeEach(() => resetAmbientProbes());
+
+  it("returns a cast member that probes fine, never an excluded one", async () => {
+    const rand = mulberry32(1);
+    for (let i = 0; i < 10; i++) {
+      const pick = await chooseVisitor(cast, ["eevee", "pidgey"], async () => true, rand);
+      expect(pick).not.toBeNull();
+      expect(["eevee", "pidgey"]).not.toContain(pick!.species);
+    }
+  });
+
+  it("skips a species that fails the probe and probes each species once for the page", async () => {
     const probed: string[] = [];
-    const picks = await pickLoadableAmbient(pool, "meadow", [], async (s) => {
+    const probe = async (s: string) => {
       probed.push(s);
-      return true;
-    });
-    expect(picks).toEqual(pickAmbient(pool, "meadow"));
+      return s !== "golurk";
+    };
+    const rand = mulberry32(2);
+    for (let i = 0; i < 20; i++) {
+      const pick = await chooseVisitor(cast, [], probe, rand);
+      expect(pick!.species).not.toBe("golurk");
+    }
     expect(new Set(probed).size).toBe(probed.length);
   });
 
-  it("swaps out a species that fails the probe for the next candidate", async () => {
-    const plain = pickAmbient(pool, "cave", ["eevee"]);
-    const bad = plain[1].species;
-    const probed: string[] = [];
-    const picks = await pickLoadableAmbient(pool, "cave", ["eevee"], async (s) => {
-      probed.push(s);
-      return s !== bad;
-    });
-    expect(picks).toHaveLength(2);
-    expect(picks.map((p) => p.species)).not.toContain(bad);
-    expect(picks.map((p) => p.species)).not.toContain("eevee");
-    expect(picks).toEqual(pickAmbient(pool, "cave", ["eevee", bad]));
-    expect(probed.filter((s) => s === bad)).toHaveLength(1);
-  });
-
-  it("returns nothing when no candidate loads", async () => {
-    expect(await pickLoadableAmbient(pool, "pond", [], async () => false)).toEqual([]);
+  it("falls back to the whole cast when exclusions empty it, and to null when nothing loads", async () => {
+    const one: AmbientPick[] = [{ species: "eevee", role: "walker" }];
+    expect((await chooseVisitor(one, ["eevee"], async () => true, mulberry32(3)))!.species).toBe("eevee");
+    resetAmbientProbes();
+    expect(await chooseVisitor(cast, [], async () => false, mulberry32(4))).toBeNull();
   });
 });

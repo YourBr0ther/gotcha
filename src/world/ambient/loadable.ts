@@ -5,12 +5,12 @@
  * carries; some packs break that (an animated `{ fps, frames }` texture,
  * an animation group with no file, a resolver with no base variation) and
  * the loader then asks for `/api/assets/<species>/undefined` or throws
- * half way through. The picker probes the manifest and resolvers, which
+ * half way through. The chooser probes the manifest and resolvers, which
  * are small, and skips the species instead.
  */
 
 import { assetUrl, loadAssetIndex } from "../bundle";
-import { pickAmbient, type AmbientCandidate, type AmbientPick } from "./candidates";
+import { type AmbientPick, shuffle } from "./candidates";
 
 export interface AmbientManifest {
   models?: Record<string, unknown>;
@@ -109,29 +109,33 @@ export async function probeAmbient(species: string): Promise<boolean> {
 
 export type AmbientProbe = (species: string) => Promise<boolean>;
 
+/** Probe results by species, kept for the page: a species is checked once however many times it visits. */
+const verdicts = new Map<string, Promise<boolean>>();
+
+/** Forget cached probe results, for tests and for an asset cache rebuild. */
+export function resetAmbientProbes(): void {
+  verdicts.clear();
+}
+
 /**
- * pickAmbient, with every pick probed first. A species that fails the
- * probe is excluded and the pick re-run, so the scene gets the next
- * candidate rather than an empty slot or a loader error.
+ * The next visitor: a random member of the cast that is not excluded (the
+ * active species, the one that just left) and whose assets probe fine. Null
+ * when nobody in the cast can load.
  */
-export async function pickLoadableAmbient(candidates: AmbientCandidate[], seed: string, exclude: string[], probe: AmbientProbe, max = 2): Promise<AmbientPick[]> {
-  const skip = [...exclude];
-  const verdicts = new Map<string, boolean>();
-  for (let round = 0; round < candidates.length + 1; round++) {
-    const picks = pickAmbient(candidates, seed, skip, max);
-    const results = await Promise.all(
-      picks.map(async (p) => {
-        let ok = verdicts.get(p.species);
-        if (ok === undefined) {
-          ok = await probe(p.species);
-          verdicts.set(p.species, ok);
-        }
-        return { pick: p, ok };
-      }),
-    );
-    const failed = results.filter((r) => !r.ok).map((r) => r.pick.species);
-    if (failed.length === 0) return picks;
-    skip.push(...failed);
+export async function chooseVisitor(cast: AmbientPick[], exclude: string[], probe: AmbientProbe, rand: () => number): Promise<AmbientPick | null> {
+  let order = shuffle(
+    cast.filter((p) => !exclude.includes(p.species)),
+    rand,
+  );
+  // A cast of one may repeat itself rather than leave the scene empty.
+  if (order.length === 0) order = shuffle(cast, rand);
+  for (const pick of order) {
+    let verdict = verdicts.get(pick.species);
+    if (!verdict) {
+      verdict = probe(pick.species);
+      verdicts.set(pick.species, verdict);
+    }
+    if (await verdict) return pick;
   }
-  return [];
+  return null;
 }

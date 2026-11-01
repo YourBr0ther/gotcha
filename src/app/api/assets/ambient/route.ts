@@ -3,9 +3,11 @@
  * `/api/assets/ambient?diorama=forest`.
  *
  * A candidate prefers that diorama in the pokedex cache, has assets in the
- * Cobblemon cache, and is small (baseScale under 1.2). The reply says how
- * each one moves so the world can pick a flier for the air volume and a
- * walker for the ground. Built once per diorama per process.
+ * Cobblemon cache, is small (baseScale under 1.2) and is not a legendary,
+ * mythical, ultra beast or paradox pokemon, which do not wander past a
+ * meadow. The reply says how each one moves so the world can pick a flier
+ * for the air volume and a walker for the ground. Built once per diorama
+ * per process.
  */
 
 import { readFile } from "node:fs/promises";
@@ -15,6 +17,8 @@ import { cobblemonCacheDir, pokedexCacheDir, readCacheIndex } from "../_lib/cach
 
 const DIORAMAS = new Set(["meadow", "forest", "beach", "cave", "snowfield", "pond"]);
 const MAX_SCALE = 1.2;
+/** Cobblemon species labels that mark a pokemon as too rare to be scenery. */
+const RARE = new Set(["legendary", "mythical", "ultra_beast", "paradox", "restricted"]);
 
 export interface AmbientCandidate {
   species: string;
@@ -31,6 +35,7 @@ interface PokedexIndex {
 interface SpeciesFile {
   baseScale?: number;
   behaviour?: SpeciesBehaviour;
+  labels?: string[];
 }
 
 const built = new Map<string, Promise<AmbientCandidate[]>>();
@@ -59,6 +64,7 @@ async function build(diorama: string): Promise<AmbientCandidate[]> {
     if (!file) return;
     const baseScale = file.baseScale ?? 1;
     if (baseScale >= MAX_SCALE) return;
+    if (file.labels?.some((l) => RARE.has(l))) return;
     const moving = file.behaviour?.moving ?? {};
     const flies = moving.fly?.canFly === true;
     const swims = moving.swim?.canSwimInWater !== false && !moving.swim?.avoidsWater;

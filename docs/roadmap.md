@@ -1,6 +1,6 @@
 # Roadmap
 
-Status as of 2026-10-30. Checked items are built, tested and on `main`.
+Status as of 2026-11-01. Checked items are built, tested and on `main`.
 Milestones follow the design doc; later sections are the plan, not a promise.
 
 ## Milestone 1, skeleton
@@ -19,7 +19,7 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 - [x] Six dioramas: meadow, forest, beach, cave, snowfield, pond
 - [x] Swimmers, fliers and water-only species move the way their behaviour block says
 - [x] Emissive textures, per-bone mesh merging, production asset route with immutable caching
-- [x] Ambient wild pokemon per diorama
+- [x] Ambient wild pokemon per diorama: a daily cast of six, one visitor at a time with gaps, random routes kept on the part of the scene a phone can see
 - [x] Lighting pass: filmic colour, sun and sky by hour, baked ambient occlusion, bloom and depth blur, animated water, grass
 - [x] Bedrock particle effects on clips: Gastly's gas, Slugma and Magcargo's lava, Ho-Oh's trail, cherry petals, Chinchou's sparks, faint effects
 - [x] Species audit of all 903: lengthless Molang loops, pose conditions, cries in second animation files, animated flame layers, clips the poser omits

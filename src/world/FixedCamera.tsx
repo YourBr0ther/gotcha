@@ -79,6 +79,9 @@ export function FixedCamera() {
   useEffect(() => {
     const aspect = size.width / Math.max(1, size.height);
     applyPose(camera, cameraPose(focusHeight, aspect, focus ? { subject: focus } : getDiorama(diorama).framing));
+    if (process.env.NODE_ENV !== "production") {
+      (window as unknown as { __camera?: THREE.Camera }).__camera = camera;
+    }
   }, [camera, size.width, size.height, focusHeight, focus, diorama]);
 
   return null;
