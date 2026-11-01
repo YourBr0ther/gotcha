@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { getDiorama, type DioramaId } from "./dioramas";
 import { CreatureRig, loadCreature } from "./creature/rig";
 import { useWorldState, useWorldStore } from "./WorldContext";
-import { mark } from "./perf";
+import { mark, timed } from "./perf";
 
 interface Ready {
   rig: CreatureRig;
@@ -89,6 +89,24 @@ function Rig({ rig, token, dioramaId }: { rig: CreatureRig; token: number; diora
     rig.setDiorama(getDiorama(dioramaId));
     store.attachCreature(rig, token, rig.height, rig.restSpot);
   }, [rig, dioramaId, store, token]);
+
+  // Compile every shader the scene needs with this creature in it before
+  // the first frame asks for them. With KHR_parallel_shader_compile the
+  // driver does the work off the main thread, so the page stays responsive
+  // and the frame that follows draws instead of freezing for the compile.
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    let alive = true;
+    const done = () => {
+      if (alive) store.markCompiled(token);
+    };
+    timed("creature:compile", () => gl.compileAsync(scene, camera)).then(done, done);
+    return () => {
+      alive = false;
+    };
+  }, [gl, scene, camera, store, token]);
 
   useFrame((state, delta) => {
     if (!framed.current) {

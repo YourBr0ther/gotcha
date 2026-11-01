@@ -24,6 +24,8 @@ export interface WorldProps {
   debugExtra?: string;
   /** The post chain (depth of field, bloom, anti-aliasing), the painted backdrop and weather particles. Default on; off for a slow device. */
   depth?: boolean;
+  /** A creature is on its way: the first render waits longer for it, so its shaders compile with the scene's in one go. */
+  expectCreature?: boolean;
   /** Anything to float over the world, like the HUD. */
   children?: ReactNode;
   className?: string;
@@ -57,24 +59,30 @@ function PostChain() {
 /**
  * How long the first render waits for the creature. The scene's first
  * render compiles every shader it meets, and a creature that arrives a
- * moment later pays a second compile of its own; on a slow GPU each is a
- * long freeze, so the first frame holds briefly until the creature is in
- * the scene graph and both compile together.
+ * moment later pays a second compile of its own; on a slow phone each is a
+ * long freeze, so the first frame holds until the creature is in the scene
+ * graph and the renderer has compiled the lot off the render path. While
+ * the hold is on the frame loop is off, which also leaves the main thread
+ * free for the creature's own files to arrive and parse.
  */
 const FIRST_RENDER_HOLD_MS = 1500;
+const FIRST_RENDER_HOLD_FOR_CREATURE_MS = 6000;
 
-/** True until the first creature is attached, or the hold runs out. */
-function useFirstRenderHold(): boolean {
-  const { attachedToken } = useWorldState();
+/** True until the first creature is attached and compiled, or the hold runs out. */
+function useFirstRenderHold(expectCreature: boolean): boolean {
+  const { compiledToken } = useWorldState();
   const [expired, setExpired] = useState(false);
   const [mountedAt] = useState(() => performance.now());
+  const cap = expectCreature ? FIRST_RENDER_HOLD_FOR_CREATURE_MS : FIRST_RENDER_HOLD_MS;
   useEffect(() => {
     if (expired) return;
-    const timer = setTimeout(() => setExpired(true), Math.max(0, mountedAt + FIRST_RENDER_HOLD_MS - performance.now()));
+    const timer = setTimeout(() => setExpired(true), Math.max(0, mountedAt + cap - performance.now()));
     return () => clearTimeout(timer);
-  }, [expired, mountedAt]);
-  // Only the very first creature is worth waiting for; later swaps render into a live scene.
-  return !expired && attachedToken === 0;
+  }, [expired, mountedAt, cap]);
+  // Only the very first creature is worth waiting for; later swaps render
+  // into a live scene. compiledToken only ever grows, so once any creature
+  // has compiled the hold is over for good.
+  return !expired && compiledToken === 0;
 }
 
 function debugFromUrl(): boolean {
@@ -97,7 +105,7 @@ function useDocumentVisible(): boolean {
  * The whole diorama as one client component. Must be loaded with
  * `next/dynamic` and `ssr: false`; it touches the DOM on mount.
  */
-export default function World({ onReady, debug, debugExtra, depth = true, children, className }: WorldProps) {
+export default function World({ onReady, debug, debugExtra, depth = true, expectCreature = false, children, className }: WorldProps) {
   const store = useMemo(() => createWorldStore(), []);
 
   useEffect(() => {
@@ -108,17 +116,17 @@ export default function World({ onReady, debug, debugExtra, depth = true, childr
 
   return (
     <WorldStoreContext.Provider value={store}>
-      <WorldView debug={debug} debugExtra={debugExtra} className={className}>
+      <WorldView debug={debug} debugExtra={debugExtra} expectCreature={expectCreature} className={className}>
         {children}
       </WorldView>
     </WorldStoreContext.Provider>
   );
 }
 
-function WorldView({ debug, debugExtra, children, className }: Omit<WorldProps, "onReady" | "depth">) {
+function WorldView({ debug, debugExtra, expectCreature = false, children, className }: Omit<WorldProps, "onReady" | "depth">) {
   const store = useWorldStore();
   const visible = useDocumentVisible();
-  const holding = useFirstRenderHold();
+  const holding = useFirstRenderHold(expectCreature);
   const [urlDebug] = useState(debugFromUrl);
   const showDebug = debug ?? urlDebug;
   const [sample, setSample] = useState<StatsSample | null>(null);

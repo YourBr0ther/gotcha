@@ -79,6 +79,8 @@ export interface WorldState {
   loadToken: number;
   /** The loadToken whose creature is in the scene graph, before its first frame. */
   attachedToken: number;
+  /** The loadToken whose creature has its shaders compiled; the first render holds for it so the first frame draws instead of freezing. */
+  compiledToken: number;
   /** The loadToken whose creature has drawn its first frame; the ambient dressing and the post chain wait for it. */
   shownToken: number;
   /** Height of the creature on screen in blocks; the camera frames around it. */

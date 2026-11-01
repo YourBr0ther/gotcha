@@ -24,7 +24,7 @@ import { StarterPicker } from "./StarterPicker";
 
 const World = dynamic(() => import("@/world/World"), {
   ssr: false,
-  loading: () => <WorldPlaceholder text="Waking up the meadow" />,
+  loading: () => <WorldPlaceholder text="Loading the world" />,
 });
 
 function WorldPlaceholder({ text }: { text: string }) {
@@ -402,7 +402,7 @@ export function HomeScreen() {
       {phase === "error" ? (
         <WorldPlaceholder text="The meadow is out of reach" />
       ) : (
-        <World onReady={onReady} debug={debug}>
+        <World onReady={onReady} debug={debug} expectCreature={phase === "world"}>
           {/* Tap zone over where the pokemon stands; petting needs no hit test on the model. */}
           {phase === "world" && !photo ? (
             <button
@@ -497,7 +497,7 @@ export function HomeScreen() {
                 <span className="bob">
                   <PixelIcon name="pokeball" size={20} />
                 </span>
-                <span className="font-pixel text-xs">{view.name} is on the way to the {dioramaLabel}</span>
+                <span className="font-pixel text-xs">Loading {view.name}&apos;s {dioramaLabel}</span>
               </div>
             </div>
           ) : null}

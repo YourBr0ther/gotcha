@@ -31,6 +31,7 @@ export class WorldStore {
     timeOfDay: localHours(),
     loadToken: 0,
     attachedToken: 0,
+    compiledToken: 0,
     shownToken: 0,
     focusHeight: 0.9,
     focus: null,
@@ -144,6 +145,11 @@ export class WorldStore {
     const queued = this.creatureWaiters;
     this.creatureWaiters = [];
     for (const fn of queued) fn(controller);
+  }
+
+  /** Called by the creature once the renderer has compiled the scene with it in. */
+  markCompiled(loadToken: number): void {
+    if (loadToken > this.state.compiledToken) this.set({ compiledToken: loadToken });
   }
 
   /** Called by the creature on its first rendered frame. */
