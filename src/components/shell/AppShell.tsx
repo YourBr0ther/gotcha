@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { PixelIcon, type PixelIconName } from "@/components/pixel/PixelIcon";
+import { TimezoneSync } from "./TimezoneSync";
 
 interface Tab {
   href: string;
@@ -41,6 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh">
+      <TimezoneSync />
       <nav
         aria-label="Sections"
         className="card card-strong fixed inset-y-0 left-0 z-40 hidden w-56 flex-col gap-1 rounded-none p-3 md:flex"
