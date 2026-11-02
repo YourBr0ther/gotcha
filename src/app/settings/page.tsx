@@ -71,7 +71,7 @@ export default function SettingsPage() {
 
   return (
     <Screen>
-      <PageHeader title="Settings" back="/more" />
+      <PageHeader title="Settings" back="/" />
       <section className="card flex flex-col gap-3 p-4" aria-labelledby="name-title">
         <h2 id="name-title" className="text-base font-extrabold">
           Your name

@@ -21,7 +21,7 @@ export default function NeighborhoodPage() {
 
   return (
     <Screen>
-      <PageHeader title="Neighborhood" back="/more" />
+      <PageHeader title="Neighborhood" back="/" />
       {!trainers ? (
         <div className="flex flex-col gap-2">
           <SkeletonCard />

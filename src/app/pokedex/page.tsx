@@ -74,7 +74,7 @@ export default function PokedexPage() {
 
   return (
     <Screen>
-      <PageHeader title="Pokedex" back="/more" aside={entries ? <span className="font-pixel text-sm text-ink-dim">{entries.length} seen</span> : null} />
+      <PageHeader title="Pokedex" back="/" aside={entries ? <span className="font-pixel text-sm text-ink-dim">{entries.length} seen</span> : null} />
       {!entries ? (
         <div className="flex flex-col gap-2">
           <SkeletonCard lines={3} />

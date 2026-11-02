@@ -44,7 +44,7 @@ export default function PartyPage() {
 
   return (
     <Screen>
-      <PageHeader title="Party" aside={party ? <span className="font-pixel text-sm text-ink-dim">{party.party.length}/{party.size}</span> : null} />
+      <PageHeader title="Party" back="/" aside={party ? <span className="font-pixel text-sm text-ink-dim">{party.party.length}/{party.size}</span> : null} />
       {!party ? (
         <div className="flex flex-col gap-2">
           {slots.map((_, i) => (

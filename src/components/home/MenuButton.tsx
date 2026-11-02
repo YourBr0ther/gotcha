@@ -3,39 +3,44 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
-import { TABS } from "@/components/shell/AppShell";
+import { SECTIONS } from "@/components/shell/AppShell";
 import { Sheet } from "@/components/ui/Sheet";
 
 /**
- * The sections menu for Home on a phone, where the tab bar is hidden so
- * the world owns the bottom edge. One button, in the same column as Photo
- * and Journal at the top right so Home has a single set of controls;
- * round at the bottom corner only on the starter screen, which has no
- * HUD. Opens a sheet with the same tabs and pixel icons as the tab bar.
+ * More: the last button of Home's care row, opening a sheet of the
+ * sections that are not a care action (Party, PC, Journal, Pokedex,
+ * Neighborhood, Settings). The store is reached through Bag and the games
+ * through Play, so Home has one menu. The round form sits in the corner
+ * of the starter screen, which has no care row yet.
  */
-export function MenuButton({ className = "", square = false }: { className?: string; square?: boolean }) {
+export function MoreButton({ variant = "action", className = "" }: { variant?: "action" | "round"; className?: string }) {
   const [open, setOpen] = useState(false);
-  const tabs = TABS.filter((t) => t.href !== "/");
   return (
     <>
-      <button
-        type="button"
-        aria-label="Menu"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen(true)}
-        className={`card flex items-center justify-center hover:bg-white/10 active:scale-95 ${square ? "h-12 w-12" : "h-11 w-11 rounded-full"} ${className}`}
-      >
-        <PixelIcon name="menu" size={square ? 30 : 22} />
-      </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Menu">
-        <ul className="grid grid-cols-5 gap-2 pb-1" aria-label="Sections">
-          {tabs.map((t) => (
+      {variant === "round" ? (
+        <button type="button" aria-label="More" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className={`card flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10 active:scale-95 ${className}`}>
+          <PixelIcon name="menu" size={22} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+          className={`card flex h-[68px] flex-1 flex-col items-center justify-center gap-1 px-1 hover:bg-white/10 active:scale-95 md:h-[80px] md:w-24 md:flex-none ${className}`}
+        >
+          <PixelIcon name="more" size={32} />
+          <span className="text-[13px] font-bold leading-none">More</span>
+        </button>
+      )}
+      <Sheet open={open} onClose={() => setOpen(false)} title="More">
+        <ul className="grid grid-cols-3 gap-2 pb-1" aria-label="Sections">
+          {SECTIONS.map((t) => (
             <li key={t.href}>
               <Link
                 href={t.href}
                 onClick={() => setOpen(false)}
-                className="tap flex h-[68px] flex-col items-center justify-center gap-1.5 rounded-[12px] bg-white/8 text-[11px] font-bold text-ink-dim hover:bg-white/14 hover:text-ink"
+                className="tap flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[12px] bg-white/8 text-[12px] font-bold text-ink-dim hover:bg-white/14 hover:text-ink"
               >
                 <PixelIcon name={t.icon} size={26} />
                 <span>{t.label}</span>

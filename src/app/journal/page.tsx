@@ -103,7 +103,7 @@ export default function JournalPage() {
 
   return (
     <Screen>
-      <PageHeader title={name ? `${name}'s journal` : "Journal"} back="/more" />
+      <PageHeader title={name ? `${name}'s journal` : "Journal"} back="/" />
       {loaded === undefined ? (
         <div className="flex flex-col gap-2">
           <Skeleton className="h-28" />

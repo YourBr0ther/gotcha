@@ -38,7 +38,7 @@ export default function StorePage() {
 
   return (
     <Screen>
-      <PageHeader title="Store" aside={<BytesPill bytes={store?.bytes} />} />
+      <PageHeader title="Store" back="/" aside={<BytesPill bytes={store?.bytes} />} />
       <div className="scroll-thin -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%-28px),transparent)]" role="tablist" aria-label="Categories">
         {CATEGORY_ORDER.map((c) => (
           <button

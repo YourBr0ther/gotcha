@@ -68,16 +68,24 @@ function FreeRow({ icon, title, text, label, onClick, busy, danger }: { icon: Pi
   );
 }
 
-function StoreLink({ text }: { text: string }) {
+/** A row that leads to another screen: the store from Bag, the games from Play. */
+function LinkRow({ icon, title, text, href, label }: { icon: PixelIconName; title: string; text: string; href: string; label: string }) {
   return (
-    <li className="flex flex-col items-center gap-2 rounded-[12px] bg-white/6 px-3 py-5 text-center">
-      <PixelIcon name="bag" size={36} className="opacity-70" />
-      <span className="text-sm text-ink-dim">{text}</span>
-      <Link href="/store" className="tap inline-flex items-center justify-center rounded-[12px] bg-white/10 px-4 text-sm font-bold hover:bg-white/16">
-        Open the store
+    <li className="flex items-center gap-3 rounded-[12px] bg-white/6 px-3 py-2">
+      <PixelIcon name={icon} size={36} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-bold">{title}</span>
+        <span className="text-xs text-ink-dim">{text}</span>
+      </div>
+      <Link href={href} className="tap inline-flex items-center justify-center rounded-[12px] bg-white/10 px-3 text-sm font-bold hover:bg-white/16">
+        {label}
       </Link>
     </li>
   );
+}
+
+function StoreLink({ text }: { text: string }) {
+  return <LinkRow icon="store" title="Store" text={text} href="/store" label="Shop" />;
 }
 
 export function CareSheet({ kind, onClose, view, bag, catalog, busy, onCare, onDiscard }: Props) {
@@ -123,6 +131,7 @@ export function CareSheet({ kind, onClose, view, bag, catalog, busy, onCare, onD
               <ItemRow key={item.id} item={item} qty={entry.qty} actionLabel="Play" busy={busy} onUse={() => onCare({ action: "play", item: item.id })} />
             ))}
             {toys.length === 0 ? <StoreLink text="Toys make play last longer." /> : null}
+            <LinkRow icon="games" title="Mini-games" text="Berry Catch, Whack-a-Diglett, Type Match. They pay Bytes." href="/games" label="Play" />
           </ul>
         </>
       );
@@ -178,13 +187,12 @@ export function CareSheet({ kind, onClose, view, bag, catalog, busy, onCare, onD
     }
     case "items": {
       const groups = CATEGORY_ORDER.map((c) => ({ category: c, items: owned.filter((o) => o.item.category === c) })).filter((g) => g.items.length > 0);
-      body =
-        groups.length === 0 ? (
-          <ul>
-            <StoreLink text="The bag is empty." />
+      body = (
+        <>
+          <ul className="mb-3">
+            <StoreLink text={groups.length === 0 ? "The bag is empty. Food, toys, medicine and places." : "Food, toys, medicine and places."} />
           </ul>
-        ) : (
-          groups.map((g) => (
+          {groups.map((g) => (
             <section key={g.category} className="mb-3">
               <h3 className="mb-1.5 font-pixel text-xs uppercase tracking-wider text-ink-dim">{CATEGORY_LABEL[g.category]}</h3>
               <ul className="flex flex-col gap-2">
@@ -205,8 +213,9 @@ export function CareSheet({ kind, onClose, view, bag, catalog, busy, onCare, onD
                 })}
               </ul>
             </section>
-          ))
-        );
+          ))}
+        </>
+      );
       break;
     }
   }

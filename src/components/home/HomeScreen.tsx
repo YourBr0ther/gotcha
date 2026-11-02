@@ -20,7 +20,7 @@ import { ActionButton, ClockCard, MetersCard, NameCard, SquareButton, type Delta
 import { CareSheet, type CareKind, type CareRequest } from "./CareSheet";
 import { DialogueBox } from "./DialogueBox";
 import { EvolutionPrompt } from "./EvolutionPrompt";
-import { MenuButton } from "./MenuButton";
+import { MoreButton } from "./MenuButton";
 import { Microphone, type TalkReply } from "./Microphone";
 import { StarterPicker } from "./StarterPicker";
 
@@ -488,7 +488,7 @@ export function HomeScreen() {
   // indicator. With the debug overlay on, the row lifts by a tab height
   // and the overlay takes that strip.
   const safeBottom = "calc(var(--spacing-safe-bottom) + 12px)";
-  const actionBottom = debug ? "calc(var(--spacing-tab) + var(--spacing-safe-bottom) + 12px)" : safeBottom;
+  const actionBottom = safeBottom;
   const dioramaLabel = useMemo(() => (view ? toDiorama(view.state.location.diorama) : "meadow"), [view]);
 
   return (
@@ -542,7 +542,7 @@ export function HomeScreen() {
                 </div>
               </div>
               <div className="absolute right-3" style={{ bottom: safeBottom }}>
-                <MenuButton className="md:hidden" />
+                <MoreButton variant="round" className="md:hidden" />
               </div>
             </>
           ) : null}
@@ -560,7 +560,6 @@ export function HomeScreen() {
               <ClockCard weather={weather} />
               <SquareButton icon="camera" label="Photo mode" onClick={() => setPhoto(true)} />
               <SquareButton icon="book" label="Journal" badge={journalNew} onClick={openJournal} />
-              <MenuButton square className="md:hidden" />
             </div>
           </div>
 
@@ -586,7 +585,8 @@ export function HomeScreen() {
               ) : (
                 <ActionButton icon="pillow" label="Rest" onClick={() => setSheet("rest")} />
               )}
-              <ActionButton icon="bag" label="Items" onClick={() => setSheet("items")} />
+              <ActionButton icon="bag" label="Bag" onClick={() => setSheet("items")} />
+              <MoreButton className="pointer-events-auto md:hidden" />
             </div>
           </div>
 

@@ -7,7 +7,7 @@ import { GAMES } from "./registry";
 export default function GamesPage() {
   return (
     <Screen>
-      <PageHeader title="Games" />
+      <PageHeader title="Games" back="/" />
       <p className="text-sm text-ink-dim">Quick rounds with your pokemon. They earn Bytes, and the first few each day pay best.</p>
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Games">
         {GAMES.map((g) => (

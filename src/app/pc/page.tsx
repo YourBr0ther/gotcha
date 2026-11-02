@@ -113,6 +113,7 @@ export default function PcPage() {
     <Screen wide>
       <PageHeader
         title="PC"
+        back="/"
         aside={
           <>
             <label className="tap inline-flex cursor-pointer items-center gap-2 rounded-[12px] bg-white/10 px-3 text-sm font-bold hover:bg-white/16">
