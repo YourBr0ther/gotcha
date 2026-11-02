@@ -35,6 +35,15 @@ export async function getTrainer(db: DbOrTx, trainerId: string): Promise<Trainer
   return row;
 }
 
+/** The name the pokemon use for the trainer and the neighborhood shows. */
+export async function setDisplayName(db: DbOrTx, trainerId: string, name: string): Promise<TrainerRow> {
+  const clean = name.trim().slice(0, 24);
+  if (!clean) throw new ServiceError("bad_request", "name is empty");
+  const [row] = await db.update(schema.trainer).set({ displayName: clean }).where(eq(schema.trainer.id, trainerId)).returning();
+  if (!row) throw new ServiceError("not_found", "trainer not found");
+  return row;
+}
+
 export async function setTimezone(db: DbOrTx, trainerId: string, timezone: string): Promise<TrainerRow> {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: timezone });

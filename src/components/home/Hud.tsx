@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { PixelIcon, type PixelIconName } from "@/components/pixel/PixelIcon";
+import { Face } from "@/components/ui/Face";
 import { Hearts } from "@/components/ui/primitives";
 import { clockParts, genderGlyph } from "@/components/lib/format";
 import type { PokemonView, Weather } from "@/components/lib/api";
@@ -11,7 +12,7 @@ export function NameCard({ view }: { view: PokemonView }) {
   const g = genderGlyph(view.gender);
   return (
     <div className="card flex w-[clamp(150px,48vw,196px)] items-center gap-2.5 px-2.5 py-2 short:py-1.5">
-      <PixelIcon name="pokeball" size={38} />
+      <Face species={view.species} size={44} rounded="rounded-lg" />
       <div className="flex min-w-0 flex-col">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[17px] font-extrabold leading-tight">{view.name}</span>

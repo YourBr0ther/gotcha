@@ -17,7 +17,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   medicine: "Medicine",
   toy: "Toys",
   decoration: "Decorations",
-  diorama: "Dioramas",
+  diorama: "Places",
   key: "Key items",
 };
 
@@ -70,8 +70,8 @@ export function describeEffects(item: StoreItem): string {
   for (const [need, amount] of Object.entries(fill)) if (amount) parts.push(`+${amount} ${names[need] ?? need}`);
   if (item.effects.cureSickness) parts.push("cures sickness");
   if (item.effects.modifier) parts.push(`${names[item.effects.modifier.need]} lasts longer for a day`);
-  if (item.effects.unlock) parts.push(`unlocks the ${item.effects.unlock}`);
-  if (item.category === "decoration") parts.push("for the diorama");
+  if (item.effects.unlock) parts.push(`somewhere new to live, the ${item.effects.unlock}`);
+  if (item.category === "decoration") parts.push("for where your pokemon lives");
   if (item.category === "key" && parts.length === 0) parts.push("for evolution");
   return parts.join(", ");
 }

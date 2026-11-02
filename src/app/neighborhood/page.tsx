@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { Screen } from "@/components/shell/Backdrop";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
+import { Face } from "@/components/ui/Face";
 import { EmptyState, PageHeader, SkeletonCard } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
 import { errorText, get, type TrainerSummary } from "@/components/lib/api";
-import { MOOD_FACE, titleCase } from "@/components/lib/format";
+import { MOOD_FACE, sentence, titleCase } from "@/components/lib/format";
 
 export default function NeighborhoodPage() {
   const { toast } = useToast();
@@ -27,12 +28,12 @@ export default function NeighborhoodPage() {
           <SkeletonCard />
         </div>
       ) : trainers.length === 0 ? (
-        <EmptyState title="Nobody here yet" text="Trainers show up after their first visit." />
+        <EmptyState title="Nobody else yet" text="Everyone in the family shows up here after their first visit." />
       ) : (
         <ul className="flex flex-col gap-2">
           {trainers.map((t) => (
             <li key={t.id} className="card flex items-center gap-3 px-3 py-3">
-              <PixelIcon name="pokeball" size={40} className={t.activePokemon ? "" : "opacity-40"} />
+              {t.activePokemon ? <Face species={t.activePokemon.species} size={48} /> : <PixelIcon name="pokeball" size={40} className="opacity-40" />}
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="text-base font-extrabold">{t.name}</span>
                 {t.activePokemon ? (
@@ -41,7 +42,7 @@ export default function NeighborhoodPage() {
                       {t.activePokemon.name} the {titleCase(t.activePokemon.species)}, Lv. {t.activePokemon.level}
                     </span>
                     <span className="text-xs text-ink-faint">
-                      {t.activePokemon.asleep ? "Asleep" : titleCase(MOOD_FACE[t.activePokemon.mood] ?? t.activePokemon.mood)} in the {t.activePokemon.diorama}
+                      {t.activePokemon.asleep ? "Asleep" : sentence(MOOD_FACE[t.activePokemon.mood] ?? t.activePokemon.mood)} in the {t.activePokemon.diorama}
                     </span>
                   </>
                 ) : (

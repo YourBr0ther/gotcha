@@ -13,11 +13,18 @@ function titleCase(id: string): string {
     .join(" ");
 }
 
+/** Names that are not the id in title case. A place is sold by its name, not as a "diorama": the trainer is buying a new stretch of the pokemon world to live in. */
+const NAMES: Partial<Record<StoreItemId, string>> = {
+  diorama_forest: "The Forest",
+  diorama_beach: "The Beach",
+  diorama_cave: "The Cave",
+};
+
 const CATALOG: readonly StoreItem[] = (Object.keys(STORE_ITEMS) as StoreItemId[]).map((id) => {
   const def = STORE_ITEMS[id];
   const item: StoreItem = {
     id,
-    name: titleCase(id),
+    name: NAMES[id] ?? titleCase(id),
     category: def.category as StoreCategory,
     price: def.price,
     effects: {},

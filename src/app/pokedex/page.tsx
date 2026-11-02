@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Screen } from "@/components/shell/Backdrop";
-import { PixelIcon } from "@/components/pixel/PixelIcon";
+import { Face } from "@/components/ui/Face";
 import { EmptyState, PageHeader, SkeletonCard, TypeBadge } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
 import { errorText, get, type RichView } from "@/components/lib/api";
@@ -86,7 +86,7 @@ export default function PokedexPage() {
         <ul className="flex flex-col gap-2">
           {entries.map((e) => (
             <li key={e.species} className="card flex gap-3 px-3 py-3">
-              <PixelIcon name="pokeball" size={40} />
+              <Face species={e.species} size={48} />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <span className="font-pixel text-xs text-ink-dim">#{String(e.nationalDex).padStart(3, "0")}</span>
@@ -98,7 +98,7 @@ export default function PokedexPage() {
                   </span>
                 </div>
                 {e.lines.length > 0 ? <p className="text-sm text-ink-dim">{e.lines[0]}</p> : <p className="text-xs text-ink-faint">No entry on file.</p>}
-                <span className="text-[11px] text-ink-faint">Yours: {e.owned.join(", ")}</span>
+                <span className="text-[11px] text-ink-faint">{e.owned.length === 1 ? `Your ${e.owned[0]}` : `Yours: ${e.owned.join(", ")}`}</span>
               </div>
             </li>
           ))}

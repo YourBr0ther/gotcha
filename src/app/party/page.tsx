@@ -117,7 +117,7 @@ export default function PartyPage() {
           })}
         </ol>
       )}
-      <p className="text-center text-xs text-ink-faint">Tap a pokemon to make it the one at home. Drag or use the arrows to reorder.</p>
+      <p className="text-center text-xs text-ink-faint">Tap a pokemon to bring it home. The arrows change the order.</p>
     </Screen>
   );
 }

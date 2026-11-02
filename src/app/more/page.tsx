@@ -8,10 +8,10 @@ import { BytesPill, PageHeader, Skeleton } from "@/components/ui/primitives";
 import { get, type Me } from "@/components/lib/api";
 
 const LINKS: Array<{ href: string; label: string; text: string; icon: PixelIconName }> = [
-  { href: "/neighborhood", label: "Neighborhood", text: "Everyone's pokemon at home", icon: "tree" },
+  { href: "/neighborhood", label: "Neighborhood", text: "How everyone's pokemon are doing", icon: "tree" },
   { href: "/pokedex", label: "Pokedex", text: "Every species you have met", icon: "pokeball" },
   { href: "/journal", label: "Journal", text: "What your pokemon remembers", icon: "book" },
-  { href: "/settings", label: "Settings", text: "Timezone and the install", icon: "stone" },
+  { href: "/settings", label: "Settings", text: "Your name, your clock, the install", icon: "stone" },
 ];
 
 export default function MorePage() {

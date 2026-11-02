@@ -3,12 +3,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Screen } from "@/components/shell/Backdrop";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
+import { Face } from "@/components/ui/Face";
 import { PokemonCard } from "@/components/ui/PokemonCard";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button, EmptyState, PageHeader, Skeleton } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
 import { downloadFile, errorText, get, post, type BoxView, type ImportResult, type PartyView, type PokemonView } from "@/components/lib/api";
 import { titleCase } from "@/components/lib/format";
+
+/** What happened to the imported pokemon, in words. */
+const OUTCOME_TITLE: Record<string, string> = { new: "joined you", returned: "is back", received: "arrived", restored: "is restored" };
+const OUTCOME_TEXT: Record<string, string> = {
+  new: "A pokemon from another Gotcha. It goes in the PC with everything it remembers.",
+  returned: "Home from a trade, with its memories of the trip.",
+  received: "Traded to you. It keeps everything it remembers.",
+  restored: "Brought back from a saved copy.",
+};
+const VERIFICATION_TEXT: Record<string, string> = { verified: "Signed by a Gotcha you know", unverified: "Signed by a Gotcha you have not met", unsigned: "Not signed" };
 
 interface Boxes {
   boxSize: number;
@@ -106,7 +117,7 @@ export default function PcPage() {
           <>
             <label className="tap inline-flex cursor-pointer items-center gap-2 rounded-[12px] bg-white/10 px-3 text-sm font-bold hover:bg-white/16">
               <PixelIcon name="bag" size={18} />
-              Import a pokemon file
+              Import
               <input ref={file} type="file" accept=".cpkmn,application/vnd.gotcha.cpkmn,application/zip" className="sr-only" onChange={(e) => void onImport(e.target.files?.[0])} />
             </label>
           </>
@@ -145,7 +156,7 @@ export default function PcPage() {
                         aria-label={`${p.name}, level ${p.level}`}
                         className="flex aspect-square w-full flex-col items-center justify-center gap-0.5 rounded-[10px] bg-white/10 hover:bg-white/16"
                       >
-                        <PixelIcon name="pokeball" size={28} />
+                        <Face species={p.species} size={30} rounded="rounded-md" />
                         <span className="w-full truncate px-1 text-center text-[10px] font-bold">{p.name}</span>
                       </button>
                     ) : (
@@ -177,7 +188,7 @@ export default function PcPage() {
           <div className="flex flex-col gap-3">
             <PokemonCard view={selected} />
             <p className="text-xs text-ink-dim">
-              {titleCase(selected.species)} - {selected.status === "pc" ? `Box ${selected.box}, slot ${selected.boxSlot}` : selectedInParty ? "in the party" : selected.status}
+              {titleCase(selected.species)} · {selected.status === "pc" ? `Box ${selected.box}, slot ${selected.boxSlot}` : selectedInParty ? "in the party" : "away on a trade"}
             </p>
             <div className="grid grid-cols-2 gap-2">
               {selected.status === "pc" ? (
@@ -190,14 +201,14 @@ export default function PcPage() {
                 </Button>
               )}
               <Button variant="ghost" disabled={busy} onClick={() => void exportAs(selected.id, "backup")}>
-                Export backup
+                Save a copy
               </Button>
               <Button variant="ghost" disabled={busy} onClick={() => void exportAs(selected.id, "trade")}>
-                Export for trade
+                Send for trade
               </Button>
               {confirmRelease ? (
                 <Button variant="danger" disabled={busy} onClick={() => void op({ op: "release", pokemonId: selected.id })}>
-                  Really release
+                  Yes, release
                 </Button>
               ) : (
                 <Button variant="ghost" disabled={busy} onClick={() => setConfirmRelease(true)}>
@@ -206,35 +217,24 @@ export default function PcPage() {
               )}
             </div>
             {partyFull && selected.status === "pc" ? <p className="text-xs text-need-hunger">The party is full. Deposit one first.</p> : null}
-            <p className="text-xs text-ink-faint">A trade export locks this pokemon until the file comes back through Import.</p>
+            <p className="text-xs text-ink-faint">Sending for trade gives you a file to pass on. The pokemon waits here, locked, until a file comes back through Import.</p>
           </div>
         ) : null}
       </Sheet>
 
-      <Sheet open={!!imported} onClose={() => setImported(null)} title="Import result" dim>
+      <Sheet open={!!imported} onClose={() => setImported(null)} title={imported ? `${imported.view.name} ${OUTCOME_TITLE[imported.outcome] ?? "arrived"}` : ""} dim>
         {imported ? (
           <div className="flex flex-col gap-3">
             <PokemonCard view={imported.view} />
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-              <dt className="text-ink-dim">Outcome</dt>
-              <dd className="font-bold">{imported.outcome.replace(/_/g, " ")}</dd>
-              <dt className="text-ink-dim">Signature</dt>
-              <dd className={`font-bold ${imported.verification === "verified" ? "text-need-happiness" : "text-need-hunger"}`}>{imported.verification}</dd>
-              {imported.bytesAwarded ? (
-                <>
-                  <dt className="text-ink-dim">Bytes</dt>
-                  <dd className="font-pixel text-bytes">+{imported.bytesAwarded}</dd>
-                </>
-              ) : null}
-            </dl>
+            <p className="text-sm text-ink-dim">{OUTCOME_TEXT[imported.outcome] ?? ""}</p>
+            <p className={`text-sm ${imported.verification === "verified" ? "text-need-happiness" : "text-need-hunger"}`}>{VERIFICATION_TEXT[imported.verification] ?? imported.verification}</p>
+            {imported.bytesAwarded ? <p className="font-pixel text-sm text-bytes">+{imported.bytesAwarded} Bytes</p> : null}
             {imported.warnings.length > 0 ? (
               <ul className="flex flex-col gap-1 rounded-[10px] bg-white/6 p-2 text-xs">
                 {imported.warnings.map((w, i) => (
                   <li key={i} className="flex gap-2">
                     <PixelIcon name="warn" size={14} className="shrink-0 text-need-hunger" />
-                    <span>
-                      <b>{w.code}</b> {"message" in w && typeof w.message === "string" ? w.message : ""}
-                    </span>
+                    <span>{"message" in w && typeof w.message === "string" ? w.message : w.code.replace(/_/g, " ")}</span>
                   </li>
                 ))}
               </ul>

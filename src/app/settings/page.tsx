@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [me, setMe] = useState<Me | null>(null);
   const [tz, setTz] = useState("");
+  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const all = useMemo(() => zones(), []);
   const [lowPower, setLowPower] = useState(false);
@@ -35,9 +36,24 @@ export default function SettingsPage() {
       .then((m) => {
         setMe(m);
         setTz(m.timezone);
+        setName(m.name);
       })
       .catch((e) => toast(errorText(e), "error"));
   }, [toast]);
+
+  const saveName = async (value: string) => {
+    setBusy(true);
+    try {
+      const r = await patch<{ name: string }>("/api/me", { name: value.trim() });
+      setName(r.name);
+      setMe((m) => (m ? { ...m, name: r.name } : m));
+      toast(`Hello, ${r.name}`, "success");
+    } catch (e) {
+      toast(errorText(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const save = async (zone: string) => {
     setBusy(true);
@@ -56,11 +72,33 @@ export default function SettingsPage() {
   return (
     <Screen>
       <PageHeader title="Settings" back="/more" />
+      <section className="card flex flex-col gap-3 p-4" aria-labelledby="name-title">
+        <h2 id="name-title" className="text-base font-extrabold">
+          Your name
+        </h2>
+        <p className="text-xs text-ink-dim">What your pokemon calls you, and how the neighborhood sees you.</p>
+        {!me ? (
+          <Skeleton className="h-11" />
+        ) : (
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveName(name);
+            }}
+          >
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={24} autoComplete="nickname" aria-label="Your name" className="h-11 min-w-0 flex-1 rounded-[10px] bg-white/10 px-3 text-base outline-none ring-white/30 focus:ring-2" />
+            <Button type="submit" variant="primary" disabled={busy || !name.trim() || name.trim() === me.name}>
+              Save
+            </Button>
+          </form>
+        )}
+      </section>
       <section className="card flex flex-col gap-3 p-4" aria-labelledby="tz-title">
         <h2 id="tz-title" className="text-base font-extrabold">
           Timezone
         </h2>
-        <p className="text-xs text-ink-dim">Night in the diorama and the daily care stipend follow this clock.</p>
+        <p className="text-xs text-ink-dim">Night falls for your pokemon, and the morning stipend arrives, on this clock.</p>
         {!me ? (
           <Skeleton className="h-11" />
         ) : (
@@ -81,7 +119,7 @@ export default function SettingsPage() {
                 Save
               </Button>
               <Button variant="ghost" disabled={busy || device === me.timezone} onClick={() => void save(device)}>
-                Use this device&apos;s ({device})
+                Use this phone&apos;s
               </Button>
             </div>
           </>

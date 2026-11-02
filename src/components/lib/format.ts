@@ -6,6 +6,11 @@ export function titleCase(id: string): string {
     .join(" ");
 }
 
+/** First letter up, the rest as written: "under the weather" to "Under the weather". */
+export function sentence(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export function genderGlyph(gender: string): { glyph: string; label: string; className: string } {
   if (gender === "female") return { glyph: "♀", label: "female", className: "text-[#ff7ad9]" };
   if (gender === "male") return { glyph: "♂", label: "male", className: "text-[#6fb6ff]" };

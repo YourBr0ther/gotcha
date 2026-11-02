@@ -560,7 +560,7 @@ export function HomeScreen() {
               </div>
             ) : null}
             <div className="pointer-events-auto w-full max-w-lg">
-              <DialogueBox speaker={view.name} text={dialogue?.text ?? null} tag={dialogue?.tag} onDone={() => setDialogue(null)} />
+              <DialogueBox speaker={view.name} text={dialogue?.text ?? null} tag={debug ? dialogue?.tag : null} onDone={() => setDialogue(null)} />
             </div>
             {/* Menu and microphone share a row above the actions so nothing overlaps at any phone height. */}
             <div className="flex w-full max-w-lg items-end justify-end gap-2">
