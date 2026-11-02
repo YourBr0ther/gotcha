@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import type { EpisodicEvent } from "@gotcha/cpkmn";
 import { schema } from "@/lib/db";
 import { createTestDb, type TestDb } from "@/lib/db/testing";
-import { getJournal, isChatter, JOURNAL_DAYS, parsePage, worthALine } from "./journal";
+import { getJournal, isChatter, JOURNAL_DAYS, MOMENTS_PER_DAY, parsePage, worthALine } from "./journal";
 import { insertPokemon, later, makeTrainer, T0 } from "./testing";
 
 let t: TestDb;
@@ -36,7 +36,9 @@ describe("journal", () => {
       summary: "Eli is my trainer. We have had two days together.",
       episodic: [
         episodic(later(T0, -DAY), "Eli fed Vee"),
+        episodic(later(T0, -DAY + 30_000), "Eli petted Vee"),
         episodic(later(T0, -DAY + 60_000), "Eli fed Vee"),
+        episodic(later(T0, -DAY + 90_000), "Vee refused (asleep)"),
         episodic(later(T0, -DAY + 120_000), 'Vee said "vee vee"', { kind: "talk", trainerId: eli.id }),
         episodic(later(T0, -DAY + 180_000), "Vee fell asleep", { kind: "other" }),
         episodic(later(T0, -DAY + 240_000), "Vee reached level 2", { kind: "milestone", importance: 3, emotion: "proud" }),
@@ -64,11 +66,13 @@ describe("journal", () => {
     expect(today.moments.map((m) => m.summary)).toEqual(["Eli groomed Vee", 'Eli said "hi"; Vee answered "vee!"']);
 
     expect(yesterday).toMatchObject({ page: "Eli fed me twice. I made it to level 2!", pageAt: pageTs, feeling: "proud" });
-    // Two feeds collapse to one line; the idle line, the nap and the page itself stay out.
+    // Two feeds collapse to one line at the first one's time even with a pet between; the idle line, the nap, the refusal and the page itself stay out.
     expect(yesterday.moments.map((m) => [m.summary, m.times])).toEqual([
       ["Eli fed Vee", 2],
+      ["Eli petted Vee", 1],
       ["Vee reached level 2", 1],
     ]);
+    expect(yesterday.moments[0].ts).toBe(later(T0, -DAY));
     expect(journal.newestAt).toBe(pageTs);
   });
 
@@ -81,6 +85,19 @@ describe("journal", () => {
     expect(journal.days).toHaveLength(JOURNAL_DAYS);
     expect(journal.days[0].moments[0].summary).toBe("event 0");
     expect(journal.newestAt).toBeNull();
+  });
+
+  it("caps a busy day, keeping what mattered and then the earliest", async () => {
+    const trainer = await makeTrainer(t.db, "eli");
+    const row = await insertPokemon(t.db, trainer);
+    const busy = Array.from({ length: MOMENTS_PER_DAY + 5 }, (_, i) => episodic(later(T0, i * 60_000), `tap ${i}`));
+    busy.push(episodic(later(T0, 3_600_000), "Vee reached level 2", { kind: "milestone", importance: 3 }));
+    await t.db.update(schema.pokemon).set({ memories: { summary: "", episodic: busy, relationships: {} } }).where(eq(schema.pokemon.id, row.id));
+    const journal = await getJournal(t.db, trainer.id, row.id, T0);
+    const lines = journal.days[0].moments.map((m) => m.summary);
+    expect(lines).toHaveLength(MOMENTS_PER_DAY);
+    expect(lines.at(-1)).toBe("Vee reached level 2");
+    expect(lines.slice(0, -1)).toEqual(Array.from({ length: MOMENTS_PER_DAY - 1 }, (_, i) => `tap ${i}`));
   });
 
   it("is not readable by another trainer", async () => {

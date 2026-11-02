@@ -18,6 +18,8 @@ import { localDay } from "./views";
 
 /** Days the journal goes back. */
 export const JOURNAL_DAYS = 30;
+/** Lines a day gets at most; the ones that mattered come first, then the earliest. */
+export const MOMENTS_PER_DAY = 10;
 export { JOURNAL_PREFIX };
 
 export interface JournalMoment {
@@ -69,23 +71,23 @@ export function isChatter(summary: string): boolean {
   return / said "[^"]*"$/.test(summary) && !/ answered "/.test(summary);
 }
 
-/** Whether a memory earns a line on the page: anything that mattered, or anything the trainer did, minus the chatter and the body clock. */
+/** Whether a memory earns a line on the page: anything that mattered, or anything the trainer did, minus the chatter, the body clock and the taps it slept through. */
 export function worthALine(e: Pick<EpisodicEvent, "kind" | "importance" | "summary">): boolean {
-  if (parsePage(e.summary) || isChatter(e.summary)) return false;
+  if (parsePage(e.summary) || isChatter(e.summary) || / refused \(/.test(e.summary)) return false;
   if (e.importance >= 2) return true;
   return e.kind === "care" || e.kind === "play" || e.kind === "talk";
 }
 
-function collapse(events: readonly EpisodicEvent[]): JournalMoment[] {
-  const out: JournalMoment[] = [];
+/** One line per distinct thing that happened that day, at the time it first did, with a count; then the cap. */
+function collapse(events: readonly EpisodicEvent[], cap = MOMENTS_PER_DAY): JournalMoment[] {
+  const byText = new Map<string, JournalMoment>();
   for (const e of events) {
-    const last = out.at(-1);
-    if (last && last.summary === e.summary) {
-      last.times += 1;
-      last.ts = e.ts;
-    } else out.push({ ts: e.ts, kind: e.kind, summary: e.summary, emotion: e.emotion ?? null, importance: e.importance, times: 1 });
+    const seen = byText.get(e.summary);
+    if (seen) seen.times += 1;
+    else byText.set(e.summary, { ts: e.ts, kind: e.kind, summary: e.summary, emotion: e.emotion ?? null, importance: e.importance, times: 1 });
   }
-  return out;
+  const kept = [...byText.values()].sort((a, b) => b.importance - a.importance || a.ts.localeCompare(b.ts)).slice(0, cap);
+  return kept.sort((a, b) => a.ts.localeCompare(b.ts));
 }
 
 export async function getJournal(db: DbOrTx, trainerId: string, pokemonId: string, now = new Date().toISOString()): Promise<JournalView> {
