@@ -1,8 +1,11 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetStarterSpecies, starterSpecies } from "./pokedex";
+
+// Which species animate well enough is pack data (see animation.ts); the list here only needs to know the answer.
+vi.mock("./animation", () => ({ pickableSpecies: async () => new Set(["eevee", "pikachu", "charmander"]) }));
 
 let previous: string | undefined;
 beforeEach(() => {
@@ -45,7 +48,8 @@ describe("starterSpecies", () => {
   it("falls back to the asset cache index when the pokedex cache is absent", async () => {
     process.env.POKEDEX_CACHE_DIR = path.join(os.tmpdir(), "gotcha-no-such-pokedex-cache");
     const list = await starterSpecies();
-    expect(list.length).toBeGreaterThan(100);
+    // The three the mocked verdicts allow, by dex.
+    expect(list.map((s) => s.id)).toEqual(["charmander", "pikachu", "eevee"]);
     const eevee = list.find((s) => s.id === "eevee");
     expect(eevee).toMatchObject({ name: "Eevee", dex: 133, types: ["normal"], dioramas: [] });
     expect(list.every((s) => typeof s.name === "string" && s.name.length > 0)).toBe(true);

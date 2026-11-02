@@ -89,6 +89,15 @@ audit's idle frames: run `scripts/species-render-audit.py` once, then
 `python3 -I scripts/portraits.py <audit>/render/img .pokedex-cache/portraits`.
 Without them the lists fall back to a pokeball and a texture crop.
 
+The same audit decides which species are offered at all. A pokemon whose
+idle never moves or whose walk slides in its standing pose is left out of
+the starter picker and the wild visitors. The verdicts live in
+`src/lib/data/animation-audit.json` for the pack version they were
+measured on; after a Cobblemon upgrade, rerun the audit and
+`python3 -I scripts/animation-verdicts.py <audit> src/lib/data/animation-audit.json`.
+Until then the server reads each poser itself, which agrees with the
+measurement on about 93 of 100 species.
+
 Open http://localhost:3000 on a phone-sized window. In development the
 `GOTCHA_DEV_USER` value in `.env` stands in for the proxy header; change it
 to act as a second trainer.

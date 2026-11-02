@@ -8,6 +8,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { pickableSpecies } from "./animation";
 import { listSpecies, getSpecies } from "./species";
 
 export interface StarterSpecies {
@@ -49,9 +50,10 @@ function titleCase(id: string): string {
 
 let listPromise: Promise<StarterSpecies[]> | null = null;
 
-/** Only species the Cobblemon cache has assets for can be starters. */
+/** Only species the Cobblemon cache has assets for, and that stand and walk with some life, can be starters. */
 async function build(): Promise<StarterSpecies[]> {
-  const ids = await listSpecies();
+  const animated = await pickableSpecies();
+  const ids = (await listSpecies()).filter((id) => animated.has(id));
   const dir = path.join(pokedexCacheDir(), "species");
   const index = await readJson<PokedexIndex>(path.join(dir, "index.json"));
   const out: StarterSpecies[] = [];

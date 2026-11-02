@@ -1,7 +1,10 @@
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Which species animate well enough is pack data (see services/animation); the fake cache here has no posers.
+vi.mock("@/lib/services/animation", () => ({ pickableSpecies: async () => new Set(["eevee"]) }));
 
 let dir: string;
 let previous: string | undefined;

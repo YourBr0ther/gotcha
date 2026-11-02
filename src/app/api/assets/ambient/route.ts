@@ -3,7 +3,8 @@
  * `/api/assets/ambient?diorama=forest`.
  *
  * A candidate prefers that diorama in the pokedex cache, has assets in the
- * Cobblemon cache, is small (baseScale under 1.2) and is not a legendary,
+ * Cobblemon cache that stand and walk with some life (see
+ * services/animation), is small (baseScale under 1.2) and is not a legendary,
  * mythical, ultra beast or paradox pokemon, which do not wander past a
  * meadow. The reply says how each one moves so the world can pick a flier
  * for the air volume and a walker for the ground. Built once per diorama
@@ -13,6 +14,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { SpeciesBehaviour } from "@gotcha/cpkmn";
+import { pickableSpecies } from "@/lib/services/animation";
 import { cobblemonCacheDir, pokedexCacheDir, readCacheIndex } from "../_lib/cache";
 
 const DIORAMAS = new Set(["meadow", "forest", "beach", "cave", "snowfield", "pond"]);
@@ -49,13 +51,14 @@ async function readJson<T>(file: string): Promise<T | null> {
 }
 
 async function build(diorama: string): Promise<AmbientCandidate[]> {
-  const [cache, pokedex] = await Promise.all([
+  const [cache, pokedex, animated] = await Promise.all([
     readCacheIndex(),
     readJson<PokedexIndex>(path.join(pokedexCacheDir(), "species", "index.json")),
+    pickableSpecies(),
   ]);
   if (!cache || !pokedex?.species) return [];
   const ids = Object.entries(pokedex.species)
-    .filter(([id, entry]) => entry.dioramas?.includes(diorama) && cache.species[id])
+    .filter(([id, entry]) => entry.dioramas?.includes(diorama) && cache.species[id] && animated.has(id))
     .map(([id]) => id);
   const root = cobblemonCacheDir();
   const out: AmbientCandidate[] = [];
