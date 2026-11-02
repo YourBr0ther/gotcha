@@ -98,6 +98,12 @@ export function episodicFromEngine(row: Pick<PokemonRow, "id" | "identity" | "po
       importance = 2;
       emotion = "unhappy";
       break;
+    case "foraged":
+      kind = "other";
+      summary = `${name} found some ${WILD_FOOD[e.detail ?? ""] ?? "wild berries"} to eat`;
+      importance = 1;
+      emotion = "content";
+      break;
     case "mess":
       kind = "other";
       summary = `${name} made a mess`;
@@ -160,6 +166,16 @@ export function episodicFromEngine(row: Pick<PokemonRow, "id" | "identity" | "po
   }
   return { pokemonId: row.id, ts: e.at, kind, summary, importance, trainerId, emotion: emotion ?? null };
 }
+
+/** What there is to find in each diorama; poor fare, by design. */
+const WILD_FOOD: Record<string, string> = {
+  meadow: "wild berries",
+  forest: "fallen apples",
+  beach: "washed-up seaweed",
+  cave: "cave mushrooms",
+  snowfield: "frozen berries",
+  pond: "pond weed",
+};
 
 function careSummary(action: string | undefined, who: string, name: string): string {
   switch (action) {

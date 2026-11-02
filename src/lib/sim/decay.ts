@@ -2,8 +2,9 @@
  * Lazy decay. State is stored as of lastTickAt and moved forward to `now`
  * on read. There is no tick loop: the interval is walked in segments whose
  * boundaries are the moments something discrete happens (the pokemon falls
- * asleep or wakes, a need crosses its low threshold, a mess, sickness
- * starting or worsening, rest clearing sickness, a toy wearing off). Rates
+ * asleep or wakes, a need crosses its low threshold, hunger reaches the
+ * forage line, a mess, sickness starting or worsening, rest clearing
+ * sickness, a toy wearing off). Rates
  * are constant inside a segment so each boundary is found in closed form.
  */
 
@@ -14,6 +15,7 @@ import {
   DAY,
   DECAY_PER_HOUR,
   ENERGY_RECOVERY_PER_HOUR,
+  FORAGE,
   HEALTH_DRAIN_PER_HOUR,
   HEALTH_RECOVERY_PER_HOUR,
   HOUR,
@@ -50,6 +52,7 @@ type Boundary =
   | { kind: "wake" }
   | { kind: "sleep" }
   | { kind: "low"; need: keyof typeof LOW_THRESHOLD }
+  | { kind: "forage" }
   | { kind: "mess" }
   | { kind: "sick" }
   | { kind: "worsen"; severity: 2 | 3 }
@@ -153,6 +156,11 @@ export function decay(
       mess(s, t, events);
       continue;
     }
+    // Awake and already past the forage line (woke up hungry, or the file predates foraging): eat first.
+    if (!s.asleep && s.needs.hunger < FORAGE.startHunger) {
+      forage(s, t, events);
+      continue;
+    }
     if (s.sickness && restCanClear(s) && parseIso(s.sleepStartedAt!) + SICKNESS_REST_CLEAR <= t) {
       clearSickness(s, t, events, "rest");
       continue;
@@ -173,6 +181,7 @@ export function decay(
     for (const need of LOW_NEEDS) {
       if (s.needs[need] >= LOW_THRESHOLD[need]) consider(timeTo(s.needs[need], LOW_THRESHOLD[need], r[need]), { kind: "low", need });
     }
+    if (!s.asleep) consider(timeTo(s.needs.hunger, FORAGE.startHunger, r.hunger), { kind: "forage" });
     if (!s.asleep) consider(parseIso(s.lastMessAt!) + MESS_INTERVAL - t, { kind: "mess" });
     if (r.health < 0) {
       if (!s.sickness) {
@@ -207,6 +216,10 @@ export function decay(
         // Strictly under the threshold from here on; nudge below so the loop does not re-arm it.
         s.needs[boundary.need] = Math.max(0, s.needs[boundary.need] - Number.EPSILON * NEED_MAX);
         events.push({ kind: "need_low", at: toIso(t), need: boundary.need });
+        break;
+      case "forage":
+        s.needs.hunger = FORAGE.startHunger;
+        forage(s, t, events);
         break;
       case "mess":
         mess(s, t, events);
@@ -251,6 +264,13 @@ function wakeUp(s: State, tMs: number, events: EngineEvent[], detail: string): v
   s.asleep = false;
   s.sleepStartedAt = null;
   events.push({ kind: "woke_up", at: toIso(tMs), detail });
+}
+
+/** Finds some wild food: hunger up to the forage ceiling, a little dirt from the rooting around. */
+function forage(s: State, tMs: number, events: EngineEvent[]): void {
+  s.needs.hunger = Math.max(s.needs.hunger, FORAGE.ceiling);
+  s.needs.hygiene = clampNeed(s.needs.hygiene - FORAGE.hygieneCost);
+  events.push({ kind: "foraged", at: toIso(tMs), need: "hunger", detail: s.location.diorama });
 }
 
 function mess(s: State, tMs: number, events: EngineEvent[]): void {

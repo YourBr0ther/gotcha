@@ -45,6 +45,7 @@ export type EngineEventKind =
   | "fell_asleep"
   | "woke_up"
   | "need_low"
+  | "foraged"
   | "mess"
   | "sickness_started"
   | "sickness_worsened"

@@ -76,7 +76,7 @@ Six meters, 0 to 100, stored at `lastTickAt` and decayed forward on read.
 
 | Need | Falls when | Fixed by |
 |---|---|---|
-| Hunger | always, faster after play | food items, berries the pokemon forages |
+| Hunger | always, faster after play | food items, and foraging: an awake pokemon whose hunger reaches 30 finds something itself, which only ever brings it back to 45 and costs a little hygiene |
 | Energy | awake, faster after play | sleeping (pokemon chooses, or lights off) |
 | Hygiene | always, drops hard after a mess | groom |
 | Fun | idle | play, mini-games, toys |

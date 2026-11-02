@@ -6,6 +6,7 @@ import {
   DECAY_MULTIPLIER_MIN,
   DECAY_PER_HOUR,
   ENERGY_RECOVERY_PER_HOUR,
+  FORAGE,
   HEALTH_DRAIN_PER_HOUR,
   HEALTH_RECOVERY_PER_HOUR,
   HOUR,
@@ -55,12 +56,49 @@ describe("decay", () => {
     expect(state.ageDays).toBeCloseTo(HOUR / DAY, 9);
   });
 
-  it("takes (100 - 20) / rate hours for hunger to reach the low threshold", () => {
-    const ms = HOUR * ((NEED_MAX - LOW_THRESHOLD.hunger) / DECAY_PER_HOUR.hunger);
-    const { state, events } = decay(freshState(T0), personality, species, after(ms + MINUTE));
-    expect(state.needs.hunger).toBeCloseTo(LOW_THRESHOLD.hunger - DECAY_PER_HOUR.hunger / 60, 4);
+  it("reports the moment hunger crosses its low threshold, which an awake pokemon forages before and so only meets in its sleep", () => {
+    const rate = DECAY_PER_HOUR.hunger * SLEEP_DECAY_MULTIPLIER.hunger;
+    const ms = HOUR * (5 / rate);
+    const state = { ...freshState(T0, { hunger: LOW_THRESHOLD.hunger + 5, energy: 0 }), asleep: true, sleepStartedAt: T0 };
+    const { state: out, events } = decay(state, personality, species, after(ms + MINUTE));
+    expect(out.needs.hunger).toBeCloseTo(LOW_THRESHOLD.hunger - rate / 60, 4);
     // ISO timestamps carry whole milliseconds, so the crossing is reported truncated.
     expect(events.find((e) => e.kind === "need_low" && e.need === "hunger")?.at).toBe(after(Math.floor(ms)));
+  });
+
+  it("forages when hunger reaches the start line while awake: up to the ceiling, a little dirt, never full", () => {
+    const ms = HOUR * ((NEED_MAX - FORAGE.startHunger) / DECAY_PER_HOUR.hunger);
+    const { state, events } = decay(freshState(T0), personality, species, after(ms + MINUTE));
+    const foraged = events.filter((e) => e.kind === "foraged");
+    expect(foraged).toHaveLength(1);
+    expect(foraged[0]).toMatchObject({ need: "hunger", detail: "meadow", at: after(Math.floor(ms)) });
+    expect(state.needs.hunger).toBeCloseTo(FORAGE.ceiling - DECAY_PER_HOUR.hunger / 60, 4);
+    expect(events.some((e) => e.kind === "need_low" && e.need === "hunger")).toBe(false);
+    expect(state.needs.hygiene).toBeLessThan(NEED_MAX - DECAY_PER_HOUR.hygiene * ((ms + MINUTE) / HOUR));
+  });
+
+  it("left alone awake for a day it hovers above the hunger threshold and stays well, but gets dirtier", () => {
+    // Energy would run out in a day; a stubborn personality that never tires keeps it awake for the test.
+    const state = freshState(T0, { hunger: 50 });
+    const awake = { ...personality, decayMultipliers: { ...personality.decayMultipliers, energy: DECAY_MULTIPLIER_MIN } };
+    const { state: out, events } = decay(state, awake, species, after(DAY));
+    expect(events.filter((e) => e.kind === "foraged").length).toBeGreaterThanOrEqual(8);
+    expect(out.needs.hunger).toBeGreaterThanOrEqual(FORAGE.startHunger - 1e-6);
+    expect(out.needs.hunger).toBeLessThanOrEqual(FORAGE.ceiling);
+    expect(events.some((e) => e.kind === "need_low" && e.need === "hunger")).toBe(false);
+    expect(out.needs.hygiene).toBeLessThan(LOW_THRESHOLD.hygiene);
+  });
+
+  it("does not forage in its sleep, and eats as soon as it wakes hungry", () => {
+    const state = { ...freshState(T0, { hunger: 10, energy: 50 }), asleep: true, sleepStartedAt: T0 };
+    const night = HOUR * ((NEED_MAX - 50) / ENERGY_RECOVERY_PER_HOUR);
+    const asleep = decay(state, personality, species, after(night - MINUTE));
+    expect(asleep.events.some((e) => e.kind === "foraged")).toBe(false);
+    expect(asleep.state.needs.hunger).toBeLessThan(10);
+    const awake = decay(state, personality, species, after(night + MINUTE));
+    const woke = awake.events.find((e) => e.kind === "woke_up")!;
+    expect(awake.events.find((e) => e.kind === "foraged")?.at).toBe(woke.at);
+    expect(awake.state.needs.hunger).toBeCloseTo(FORAGE.ceiling - DECAY_PER_HOUR.hunger / 60, 3);
   });
 
   it("applies personality multipliers, clamped to the allowed range", () => {
@@ -129,7 +167,8 @@ describe("decay", () => {
   });
 
   it("drains health while hunger is under its threshold and recovers it otherwise", () => {
-    const hungry = freshState(T0, { hunger: LOW_THRESHOLD.hunger - 1, health: 80 });
+    // Asleep, since an awake pokemon that hungry would go and forage.
+    const hungry = { ...freshState(T0, { hunger: LOW_THRESHOLD.hunger - 1, health: 80, energy: 0 }), asleep: true, sleepStartedAt: T0 };
     expect(decay(hungry, personality, species, after(HOUR)).state.needs.health).toBeCloseTo(80 - HEALTH_DRAIN_PER_HOUR.hunger, 6);
 
     const fine = freshState(T0, { health: 50 });
@@ -140,7 +179,8 @@ describe("decay", () => {
 
   it("gets sick when health falls to the onset threshold and worsens as it keeps falling", () => {
     const drain = HEALTH_DRAIN_PER_HOUR.hunger;
-    const state = freshState(T0, { hunger: 0, health: SICKNESS_ONSET_HEALTH + drain });
+    // Asleep and starving: awake it would forage first.
+    const state = { ...freshState(T0, { hunger: 0, health: SICKNESS_ONSET_HEALTH + drain, energy: 0 }), asleep: true, sleepStartedAt: T0 };
     const { state: sick, events } = decay(state, personality, species, after(2 * HOUR));
     expect(sick.sickness).toEqual({ kind: "stomach_ache", since: after(HOUR), severity: 1 });
     expect(events.find((e) => e.kind === "sickness_started")?.at).toBe(after(HOUR));

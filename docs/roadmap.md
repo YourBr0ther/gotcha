@@ -34,6 +34,7 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 
 - [x] Care actions: feed, play, groom, rest, wake, medicine, discipline, pet, with care mistakes
 - [x] Sickness derived from neglect, cured by medicine or rest
+- [x] Foraging: an awake pokemon feeds itself poorly from the diorama, so a day alone leaves it hungry and dirty rather than starving
 - [x] Store, bag, Bytes ledger, daily stipend
 - [x] Home screen from the concept render: floating HUD, action buttons, care sheets, dialogue box, photo mode
 - [x] Party, PC, Store, Journal, Pokedex, Neighborhood screens

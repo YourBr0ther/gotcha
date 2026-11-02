@@ -76,6 +76,23 @@ export const SICKNESS_SEVERITY_HEALTH: readonly [number, number] = [30, 15];
  */
 export const SICKNESS_REST_CLEAR = 8 * HOUR;
 
+/**
+ * Foraging. An awake pokemon whose hunger falls to the start line goes and
+ * finds something itself: it is in a meadow or a forest, after all. Wild
+ * food is poor, so it only ever brings hunger back up to the ceiling,
+ * never full, and rooting around costs some hygiene. From the ceiling the
+ * base rate reaches the start line again in a little over two hours, so a
+ * pokemon left alone hovers in the "getting low" band instead of starving,
+ * and the hunger threshold is only crossed in its sleep. Food from the
+ * trainer is still the only way to be full, and a dirty pokemon still gets
+ * sick.
+ */
+export const FORAGE = {
+  startHunger: 30,
+  ceiling: 45,
+  hygieneCost: 5,
+} as const;
+
 /** Messes happen on this clock while awake and knock hygiene down in one go. */
 export const MESS_INTERVAL = 8 * HOUR;
 export const MESS_HYGIENE_DROP = 15;
