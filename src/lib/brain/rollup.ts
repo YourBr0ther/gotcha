@@ -1,10 +1,16 @@
 /**
- * The nightly roll-up. Rewrites memories.summary in the pokemon's voice,
- * promotes the day's event rows into memories.episodic, moves the
- * relationship with the trainer, and writes one journal page as an event
- * row so the Journal screen has a dated entry to badge. With no model the
- * summary is the day's events joined in order of importance, which reads
- * flat but loses nothing.
+ * The nightly roll-up. Writes one diary page about the day in the pokemon's
+ * voice, rewrites memories.summary as the shorter memory it carries forward,
+ * promotes the day's event rows into memories.episodic, and moves the
+ * relationship with the trainer. The page is an event row prefixed
+ * "Journal, <day>:" so the Journal screen has a dated entry to badge. With
+ * no model the page is the day's biggest moments and the summary is the
+ * day's events joined in order of importance, which reads flat but loses
+ * nothing.
+ *
+ * The day is the local day the events belong to, not the night the roll-up
+ * runs: a 1am job writes yesterday's page. The first version dated pages by
+ * the run and every entry read a day late.
  */
 
 import { eq } from "drizzle-orm";
@@ -15,12 +21,12 @@ import { schema, type Db } from "@/lib/db";
 import type { EventRow, PokemonRow, TrainerRow } from "@/lib/db/schema";
 import { displayName, localDay } from "@/lib/services/views";
 import { withBudget, type BudgetOptions, type FallbackReason } from "./budget";
-import { BOND_DAILY_SWING, RELATIONSHIP_NOTES_MAX, SUMMARY_MAX } from "./constants";
+import { BOND_DAILY_SWING, PAGE_MAX_CHARS, RELATIONSHIP_NOTES_MAX, SUMMARY_MAX } from "./constants";
 import { NEW_BOND } from "./converse";
 import { insertEvent, toEpisodic } from "./events";
 import { generateWithSdk, type GenerateFn } from "./generate";
 import { factsFromPokedex } from "./menu";
-import { rollupPrompt, systemPrompt, type RollupContext } from "./prompts";
+import { rollupPrompt, rollupSystemPrompt, type RollupContext } from "./prompts";
 import { talkModel } from "./provider";
 import type { Source } from "./types";
 
@@ -28,10 +34,13 @@ export interface RollupInput {
   db: Db;
   trainer: TrainerRow;
   row: PokemonRow;
-  /** Event rows not yet folded into memories. The caller marks them rolled up afterwards. */
+  /** Event rows not yet folded into memories, all from one local day. The caller marks them rolled up afterwards. */
   events: EventRow[];
   now: string;
 }
+
+/** The "Journal, <day>: <page>" rows the roll-up writes; the journal view finds them by this prefix. */
+export const JOURNAL_PREFIX = "Journal,";
 
 export interface RollupDeps {
   generate?: GenerateFn;
@@ -41,6 +50,8 @@ export interface RollupDeps {
 
 export interface RollupResult {
   day: string;
+  /** The diary page for the day. */
+  page: string;
   summary: string;
   memories: Memories;
   journal: EventRow;
@@ -49,7 +60,9 @@ export interface RollupResult {
 }
 
 export const RollupOutput = z.object({
+  page: z.string().max(1000).optional(),
   summary: z.string().max(4000),
+  feeling: z.string().max(40).nullable().optional(),
   callsThem: z.string().max(40).nullable().optional(),
   notes: z.array(z.string().max(200)).max(3).default([]),
   bondDelta: z.number().int().min(-5).max(5).default(0),
@@ -66,6 +79,25 @@ export function clipSummary(text: string, max = SUMMARY_MAX): string {
 
 function byWeight(a: EpisodicEvent, b: EpisodicEvent): number {
   return b.importance - a.importance || a.ts.localeCompare(b.ts);
+}
+
+/** The day's biggest moments, oldest first among equals, as one short paragraph. Flat, but every word is true. */
+export function rulesPage(events: readonly EpisodicEvent[], max = 3): string {
+  if (events.length === 0) return "A quiet day. Nothing much happened.";
+  const top = [...events].sort(byWeight).slice(0, max).sort((a, b) => a.ts.localeCompare(b.ts));
+  return clipSummary(top.map((e) => `${e.summary.replace(/\.$/, "")}.`).join(" "), PAGE_MAX_CHARS);
+}
+
+/** The feeling of the day without a model: the emotion on the biggest moment, if it had one. */
+export function rulesFeeling(events: readonly EpisodicEvent[]): string | null {
+  const top = [...events].sort(byWeight).find((e) => e.emotion);
+  return top?.emotion ?? null;
+}
+
+/** The local day the events belong to: the day of the last one, or today for an empty list. */
+export function dayOfEvents(events: readonly Pick<EventRow, "ts">[], timezone: string, now: string): string {
+  const last = events.at(-1);
+  return localDay(timezone, last ? new Date(last.ts).toISOString() : now);
 }
 
 /** Today gets at most this much of the summary when there is a past to keep. */
@@ -127,7 +159,7 @@ export function updateRelationship(prev: Relationship | undefined, trainerName: 
 
 export async function rollupDay(input: RollupInput, deps: RollupDeps = {}): Promise<RollupResult> {
   const { db, row, trainer, now } = input;
-  const day = localDay(trainer.timezone, now);
+  const day = dayOfEvents(input.events, trainer.timezone, now);
   const dayEvents = input.events.map(toEpisodic);
   const ctx: RollupContext = {
     name: displayName(row),
@@ -147,7 +179,7 @@ export async function rollupDay(input: RollupInput, deps: RollupDeps = {}): Prom
     "talk",
     async (signal) => {
       const model = deps.model ?? talkModel();
-      const result = await generate({ model, system: systemPrompt(ctx), prompt: rollupPrompt(ctx), schema: RollupOutput, signal });
+      const result = await generate({ model, system: rollupSystemPrompt(ctx), prompt: rollupPrompt(ctx), schema: RollupOutput, signal });
       return { value: result.object, tokens: result.tokens };
     },
     { now, ...deps.budget },
@@ -156,16 +188,23 @@ export async function rollupDay(input: RollupInput, deps: RollupDeps = {}): Prom
   let source: Source = "rules";
   let reason: FallbackReason | undefined;
   let summary: string;
+  let page: string;
+  let feeling: string | null;
   let change: { bondDelta: number; callsThem?: string | null; notes: string[] };
   const parsed = outcome.source === "model" ? RollupOutput.safeParse(outcome.value) : null;
   if (parsed?.success && parsed.data.summary.trim()) {
     source = "model";
     summary = clipSummary(parsed.data.summary);
+    // A model that answers without a page still gets a true one from the rules.
+    page = parsed.data.page?.trim() ? clipSummary(parsed.data.page, PAGE_MAX_CHARS) : rulesPage(dayEvents);
+    feeling = parsed.data.feeling?.trim().toLowerCase().slice(0, 40) || rulesFeeling(dayEvents);
     change = { bondDelta: parsed.data.bondDelta, callsThem: parsed.data.callsThem, notes: parsed.data.notes };
   } else {
     reason = outcome.source === "rules" ? outcome.reason : "rejected";
     if (outcome.source === "rules" && outcome.reason === "error") console.warn(`roll-up for ${row.id} fell back to rules`, outcome.error);
     summary = rulesSummary(ctx);
+    page = rulesPage(dayEvents);
+    feeling = rulesFeeling(dayEvents);
     change = { bondDelta: rulesBondDelta(dayEvents, trainer.id), notes: [] };
   }
 
@@ -173,11 +212,10 @@ export async function rollupDay(input: RollupInput, deps: RollupDeps = {}): Prom
     pokemonId: row.id,
     ts: now,
     kind: "other",
-    // The rules summary already opens with the date; do not print it twice.
-    summary: `Journal, ${day}: ${summary.startsWith(`${day}: `) ? summary.slice(day.length + 2) : summary}`.slice(0, 280),
+    summary: `${JOURNAL_PREFIX} ${day}: ${page}`,
     importance: 2,
     trainerId: null,
-    emotion: "reflective",
+    emotion: feeling,
     rolledUp: true,
   });
 
@@ -191,5 +229,5 @@ export async function rollupDay(input: RollupInput, deps: RollupDeps = {}): Prom
   };
   await db.update(schema.pokemon).set({ memories, updatedAt: now }).where(eq(schema.pokemon.id, row.id));
 
-  return { day, summary, memories, journal, source, ...(reason ? { reason } : {}) };
+  return { day, page, summary, memories, journal, source, ...(reason ? { reason } : {}) };
 }

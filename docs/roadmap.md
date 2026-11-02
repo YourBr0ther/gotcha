@@ -43,7 +43,7 @@ Milestones follow the design doc; later sections are the plan, not a promise.
 
 - [x] NanoGPT decision ticks picking from an engine-approved menu, with a rules fallback
 - [x] Talking to the pokemon with a short in-character reply, emote and cry
-- [x] Nightly memory roll-up into a journal entry and a rolling summary
+- [x] Nightly memory roll-up into a dated diary page per day and a short rolling summary
 - [x] Generated personalities with bounded decay multipliers
 - [x] Daily call and token budgets per pokemon
 - [x] Transcribe route with a browser speech fallback

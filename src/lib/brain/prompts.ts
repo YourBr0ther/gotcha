@@ -7,7 +7,7 @@
 
 import type { EpisodicEvent, Personality, Relationship, State } from "@gotcha/cpkmn";
 import type { Mood } from "@/lib/sim";
-import { LINE_MAX_CHARS, RECENT_EVENTS } from "./constants";
+import { LINE_MAX_CHARS, PAGE_MAX_CHARS, RECENT_EVENTS, SUMMARY_TARGET_CHARS } from "./constants";
 import { DIORAMA_FACTS } from "./menu";
 import type { BrainSpeciesFacts, LocalTime, Menu, TickContext } from "./types";
 
@@ -212,12 +212,25 @@ export function talkPrompt(ctx: TickContext, text: string): string {
 export const ROLLUP_SCHEMA_TEXT = [
   "Answer with one JSON object and nothing else:",
   "{",
-  '  "summary": the rewritten rolling memory, first person, in your voice, at most 1800 characters, keeping what matters from the old summary and folding in today,',
+  `  "page": today's diary page: two to four short sentences, first person, only about what happened today, under ${PAGE_MAX_CHARS} characters; say the best thing and the hardest thing if there was one, and how you feel tonight,`,
+  `  "summary": the memory you carry forward, under ${SUMMARY_TARGET_CHARS} characters, three to six plain sentences: who your trainer is to you, how long you have been together, what still matters from before, how things stand lately; fold today in and let old detail fade, it is what you would still remember next month and not a diary,`,
+  '  "feeling": one or two words for how today felt to you,',
   '  "callsThem": optional, a short name you use for the trainer,',
   '  "notes": up to three short new notes about the trainer from today, or an empty array,',
   '  "bondDelta": an integer from -5 to 5, how today moved your bond with the trainer',
   "}",
 ].join("\n");
+
+/** The roll-up is a diary, not a cry, so it gets its own frame instead of the tick's. */
+export function rollupSystemPrompt(ctx: Pick<RollupContext, "name" | "facts" | "personality">): string {
+  return [
+    `You are ${ctx.name}, a ${ctx.facts.name} pokemon living in a small diorama, raised by a family, writing in your diary at the end of the day.`,
+    `Write in first person in short plain sentences a child could read, in your own voice: ${ctx.personality.voice.chatter ?? "short and simple"}.`,
+    "Only what is in the day's events happened. Never invent items, levels, places or events.",
+    "Your likes, dislikes and quirks are already known; leave them out unless today changed one.",
+    "Do not retell earlier days in the page; the summary is where the past lives, and it should get shorter about old days as new ones come.",
+  ].join(" ");
+}
 
 export interface RollupContext {
   name: string;

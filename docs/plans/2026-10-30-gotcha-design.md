@@ -56,10 +56,14 @@ tolerated. Nothing here is a product.
    visit a friend's diorama and wave.
 8. **Pokedex.** Every species seen, with the PokeAPI flavour text and the
    Cobblemon pokedex lines.
-9. **Journal.** The pokemon's memories as a diary the trainer can read:
-   the rolling summary on top, the episodic events below, written in the
-   pokemon's voice. The badge on the Home screen lights when the nightly
-   roll-up adds a page.
+9. **Journal.** A diary the trainer can read: one section per day, newest
+   first, with the page the nightly roll-up wrote in the pokemon's voice
+   and the day's moments under it. Hourly chatter and body-clock rows
+   (fell asleep, made a mess) stay out. Today fills in live before its
+   page exists. The rolling summary folds away at the bottom. The badge on
+   the Home screen lights when a new page lands. The first version put the
+   whole summary on top and listed every event below it, and nobody read
+   it.
 10. **Photo mode.** The camera button hides the HUD, lets the trainer nudge
     the camera a little, and saves a PNG of the canvas to the camera roll.
     Costs nothing, and it is how pokemon get shared in the family chat.

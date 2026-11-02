@@ -23,6 +23,10 @@ export const TRAINER_TEXT_MAX_CHARS = 500;
 export const RECENT_EVENTS = 10;
 /** memories.summary stays under this, from the file format. */
 export const SUMMARY_MAX = SUMMARY_MAX_CHARS;
+/** What the roll-up asks the model for: a rolling memory this long reads in one breath on the journal page, and the file limit above is the backstop. */
+export const SUMMARY_TARGET_CHARS = 700;
+/** A diary page is a few short sentences about one day; the episodic copy of it is cut at the spec's 280 anyway. */
+export const PAGE_MAX_CHARS = 280;
 /** relationships[trainer].notes keeps at most this many. */
 export const RELATIONSHIP_NOTES_MAX = 10;
 /** Most a day's events can move a relationship bond, either way. */
