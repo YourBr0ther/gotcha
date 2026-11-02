@@ -7,11 +7,13 @@ import { TABS } from "@/components/shell/AppShell";
 import { Sheet } from "@/components/ui/Sheet";
 
 /**
- * Round menu button for Home on a phone, where the tab bar is hidden so
- * the world and the microphone own the bottom edge. Opens a sheet with
- * the same tabs and pixel icons.
+ * The sections menu for Home on a phone, where the tab bar is hidden so
+ * the world owns the bottom edge. One button, in the same column as Photo
+ * and Journal at the top right so Home has a single set of controls;
+ * round at the bottom corner only on the starter screen, which has no
+ * HUD. Opens a sheet with the same tabs and pixel icons as the tab bar.
  */
-export function MenuButton({ className = "" }: { className?: string }) {
+export function MenuButton({ className = "", square = false }: { className?: string; square?: boolean }) {
   const [open, setOpen] = useState(false);
   const tabs = TABS.filter((t) => t.href !== "/");
   return (
@@ -22,11 +24,11 @@ export function MenuButton({ className = "" }: { className?: string }) {
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className={`card flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10 active:scale-95 ${className}`}
+        className={`card flex items-center justify-center hover:bg-white/10 active:scale-95 ${square ? "h-12 w-12" : "h-11 w-11 rounded-full"} ${className}`}
       >
-        <PixelIcon name="menu" size={22} />
+        <PixelIcon name="menu" size={square ? 30 : 22} />
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Go to">
+      <Sheet open={open} onClose={() => setOpen(false)} title="Menu">
         <ul className="grid grid-cols-5 gap-2 pb-1" aria-label="Sections">
           {tabs.map((t) => (
             <li key={t.href}>

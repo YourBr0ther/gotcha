@@ -560,6 +560,7 @@ export function HomeScreen() {
               <ClockCard weather={weather} />
               <SquareButton icon="camera" label="Photo mode" onClick={() => setPhoto(true)} />
               <SquareButton icon="book" label="Journal" badge={journalNew} onClick={openJournal} />
+              <MenuButton square className="md:hidden" />
             </div>
           </div>
 
@@ -572,9 +573,8 @@ export function HomeScreen() {
             <div className="pointer-events-auto w-full max-w-lg">
               <DialogueBox speaker={view.name} text={dialogue?.text ?? null} tag={debug ? dialogue?.tag : null} onDone={() => setDialogue(null)} />
             </div>
-            {/* Menu and microphone share a row above the actions so nothing overlaps at any phone height. */}
+            {/* The microphone sits in its own row above the actions so it never overlaps them at any phone height. */}
             <div className="flex w-full max-w-lg items-end justify-end gap-2">
-              <MenuButton className="pointer-events-auto md:hidden" />
               <Microphone pokemonId={view.id} onReply={onTalk} className="pointer-events-auto" />
             </div>
             <div className="pointer-events-auto flex w-full max-w-lg items-stretch gap-2 md:justify-center">
