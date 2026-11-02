@@ -57,7 +57,6 @@ export function StarterPicker({ open, onPicked, onClose }: Props) {
     setBusy(true);
     try {
       const r = await post<{ pokemon: PokemonView }>("/api/starter", { species: chosen, nickname: nickname.trim() || undefined });
-      toast(`${r.pokemon.name} is yours`, "success");
       onPicked(r.pokemon);
     } catch (e) {
       toast(errorText(e), "error");
@@ -67,8 +66,8 @@ export function StarterPicker({ open, onPicked, onClose }: Props) {
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Choose your first pokemon" dim tall footer={<Footer nickname={nickname} setNickname={setNickname} chosenName={chosenName} busy={busy} pick={() => void pick()} />}>
-      <p className="mb-3 text-sm text-ink-dim">It will live in the meadow and wait for you. Pick one that feels like a friend.</p>
+    <Sheet open={open} onClose={onClose} title="Who will it be?" dim tall footer={<Footer nickname={nickname} setNickname={setNickname} chosenName={chosenName} busy={busy} pick={() => void pick()} />}>
+      <p className="mb-3 text-sm text-ink-dim">Pick one that feels like a friend. It will live in the meadow and wait for you. Any species you can think of is in the search.</p>
       <label className="mb-3 block">
         <span className="sr-only">Search species</span>
         <input
@@ -138,13 +137,13 @@ function Footer({ nickname, setNickname, chosenName, busy, pick }: { nickname: s
   return (
       <div className="flex flex-col gap-2">
         <label className="flex items-center gap-2 text-sm">
-          <span className="w-20 font-bold">Nickname</span>
+          <span className="w-20 font-bold">Name</span>
           <input
             type="text"
             value={nickname}
             maxLength={12}
             onChange={(e) => setNickname(e.target.value)}
-            placeholder="optional"
+            placeholder="optional, up to 12 letters"
             className="h-11 flex-1 rounded-[10px] bg-white/10 px-3 text-base outline-none ring-white/30 placeholder:text-ink-faint focus:ring-2"
           />
         </label>

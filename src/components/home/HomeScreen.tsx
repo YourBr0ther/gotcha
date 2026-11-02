@@ -9,12 +9,11 @@ import { loadSpeciesBundle } from "@/world/bundle";
 import type { NeedName } from "@gotcha/cpkmn";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
 import { useToast } from "@/components/ui/Toast";
-import { Button, EmptyState } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/primitives";
 import { errorText, get, post, shareOrDownload, type BagEntry, type CareOutcome, type EvolveOutcome, type Me, type PartyView, type RichView, type StoreItem, type StoreResponse, type Weather } from "@/components/lib/api";
 import type { JournalView } from "@/lib/services/journal";
 import type { DiscardResult } from "@/lib/services/bag";
 import { hasUnread } from "./journalMark";
-import { titleCase } from "@/components/lib/format";
 import { readLowPower } from "@/components/lib/prefs";
 import { ActionButton, ClockCard, MetersCard, NameCard, SquareButton, type Deltas } from "./Hud";
 import { CareSheet, type CareKind, type CareRequest } from "./CareSheet";
@@ -23,6 +22,8 @@ import { EvolutionPrompt } from "./EvolutionPrompt";
 import { MoreButton } from "./MenuButton";
 import { Microphone, type TalkReply } from "./Microphone";
 import { StarterPicker } from "./StarterPicker";
+import { Tour, Welcome } from "./Onboarding";
+import { EvolutionScene, type Evolving } from "./EvolutionScene";
 
 const SKY = "bg-[linear-gradient(180deg,#5fa8e0_0%,#87c9a2_45%,#3f7a3a_75%,#28491f_100%)]";
 
@@ -142,7 +143,10 @@ export function HomeScreen() {
   // Latched once: later pokemon swaps render into a live scene and never bring the cover back.
   const [worldShown, setWorldShown] = useState(false);
   const onFirstFrame = useCallback(() => setWorldShown(true), []);
-  const [starterOpen, setStarterOpen] = useState(true);
+  const [starterOpen, setStarterOpen] = useState(false);
+  // Right after the first pick: the three-card tour over the new pokemon.
+  const [tour, setTour] = useState(false);
+  const [evolving, setEvolving] = useState<Evolving | null>(null);
   // `?debug=1` shows the world's stats overlay. Read from the location, not useSearchParams, so the page needs no Suspense boundary.
   const debug = useSyncExternalStore(subscribeNothing, readDebugFlag, () => false);
   const handleRef = useRef<WorldHandle | null>(null);
@@ -255,6 +259,17 @@ export function HomeScreen() {
     };
   }, [phase, dioramaId, withHandle]);
 
+  // The evolution reveal waits for the new form to be in the scene, then flares.
+  const revealWhenReady = useRef(false);
+  useEffect(() => {
+    if (!modelReady || !revealWhenReady.current) return;
+    revealWhenReady.current = false;
+    setEvolving((ev) => (ev && ev.stage === "glow" ? { ...ev, stage: "reveal" } : ev));
+    const handle = handleRef.current;
+    handle?.cry();
+    setTimeout(() => handle?.emote("happy"), 600);
+  }, [modelReady]);
+
   // Sleep state follows the view. A "Zz" emote marks the moment it dozes off,
   // once per nap, including a pokemon that arrives already asleep.
   const asleep = view?.state.asleep ?? false;
@@ -366,14 +381,22 @@ export function HomeScreen() {
     async (to: string) => {
       if (!view) return;
       setBusy(true);
+      setEvolving({ name: view.name, from: view.species, to, stage: "glow", bytes: 0 });
+      handleRef.current?.attend(60_000);
+      setDialogue(null);
+      // The light breathes for a few seconds whatever the server takes; the swap happens under it.
+      const glow = new Promise<void>((resolve) => setTimeout(resolve, 3600));
       try {
         const outcome = await post<EvolveOutcome>(`/api/pokemon/${view.id}/evolve`, { to });
+        await glow;
         const next = outcome.view as RichView;
         setView(next);
         setMe((m) => (m ? { ...m, bytes: outcome.balance } : m));
-        handleRef.current?.emote("love");
-        toast(`${next.name} evolved into ${titleCase(next.species)}! +${outcome.bytes} Bytes`, "success");
+        setEvolving({ name: next.name, from: view.species, to: next.species, stage: "glow", bytes: outcome.bytes });
+        revealWhenReady.current = true;
       } catch (e) {
+        await glow;
+        setEvolving((ev) => (ev ? { ...ev, stage: "failed" } : ev));
         toast(errorText(e), "error");
       } finally {
         setBusy(false);
@@ -483,7 +506,7 @@ export function HomeScreen() {
     [busy, catalog, toast],
   );
 
-  const hudHidden = photo || phase !== "world";
+  const hudHidden = photo || phase !== "world" || evolving !== null;
   // Home has no tab bar, so the action row sits right above the home
   // indicator. With the debug overlay on, the row lifts by a tab height
   // and the overlay takes that strip.
@@ -519,8 +542,10 @@ export function HomeScreen() {
             open={starterOpen}
             onClose={() => setStarterOpen(false)}
             onPicked={(picked) => {
+              setStarterOpen(false);
               setView(picked as RichView);
               setPhase("world");
+              setTour(true);
               get<Me>("/api/me")
                 .then(setMe)
                 .catch(() => undefined);
@@ -530,15 +555,7 @@ export function HomeScreen() {
             <>
               <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center px-4">
                 <div className="w-full max-w-sm">
-                  <EmptyState
-                    title="No pokemon yet"
-                    text="The meadow is waiting for a friend. Pick one whenever you are ready."
-                    action={
-                      <Button variant="primary" onClick={() => setStarterOpen(true)} className="h-12 px-5">
-                        Choose a starter
-                      </Button>
-                    }
-                  />
+                  <Welcome name={me?.name ?? null} inPc={me?.counts.pc ?? 0} onStart={() => setStarterOpen(true)} />
                 </div>
               </div>
               <div className="absolute right-3" style={{ bottom: safeBottom }}>
@@ -570,7 +587,7 @@ export function HomeScreen() {
               </div>
             ) : null}
             <div className="pointer-events-auto w-full max-w-lg">
-              <DialogueBox speaker={view.name} text={dialogue?.text ?? null} tag={debug ? dialogue?.tag : null} onDone={() => setDialogue(null)} />
+              {tour && modelReady ? <Tour name={view.name} onDone={() => setTour(false)} /> : <DialogueBox speaker={view.name} text={dialogue?.text ?? null} tag={debug ? dialogue?.tag : null} onDone={() => setDialogue(null)} />}
             </div>
             {/* The microphone sits in its own row above the actions so it never overlaps them at any phone height. */}
             <div className="flex w-full max-w-lg items-end justify-end gap-2">
@@ -608,6 +625,8 @@ export function HomeScreen() {
           ) : null}
         </>
       ) : null}
+
+      {evolving ? <EvolutionScene evolving={evolving} onDone={() => setEvolving(null)} /> : null}
 
       {photo ? (
         <div className="absolute inset-x-0 flex items-center justify-center gap-3 px-4" style={{ bottom: actionBottom }}>

@@ -222,6 +222,33 @@ textarea {
   animation: toast-in 180ms ease-out;
 }
 
+/* Evolution: white light breathing over the scene, then one flare that fades out on the reveal. */
+@keyframes evo-pulse {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+.evo-pulse {
+  background: radial-gradient(ellipse at 50% 62%, #ffffff 0%, rgb(255 255 255 / 0.7) 30%, transparent 70%);
+  animation: evo-pulse 0.9s ease-in-out infinite;
+}
+@keyframes evo-flash {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.evo-flash {
+  background: #ffffff;
+  animation: evo-flash 1.4s ease-out forwards;
+}
+
 @keyframes bob {
   0%,
   100% {

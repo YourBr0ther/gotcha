@@ -179,7 +179,6 @@ export function CareSheet({ kind, onClose, view, bag, catalog, busy, onCare, onD
             {meds.map(({ entry, item }) => (
               <ItemRow key={item.id} item={item} qty={entry.qty} actionLabel="Give" busy={busy} onUse={() => onCare({ action: "medicine", item: item.id })} />
             ))}
-            <FreeRow icon="warn" title="Discipline" text="Only after a mess. Unjust scolding costs bond." label="Scold" busy={busy} danger onClick={() => onCare({ action: "discipline" })} />
           </ul>
         </>
       );
