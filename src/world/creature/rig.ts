@@ -339,6 +339,16 @@ export class CreatureRig implements CreatureController {
     this.setActivity(this.restingActivity(), true);
   }
 
+  /** Ground position in world units. */
+  get position(): { x: number; z: number } {
+    return { x: this.group.position.x, z: this.group.position.z };
+  }
+
+  /** Where it stands when the trainer is here. */
+  get homeSpot(): Spot {
+    return this.spawnSpot(this.diorama);
+  }
+
   /** Where the camera should look: the spot this creature rests at after loading, and how high it sits there. */
   get restSpot(): { x: number; y: number; z: number } {
     const s = this.spawnSpot(this.diorama);

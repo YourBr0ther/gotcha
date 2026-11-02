@@ -7,15 +7,30 @@
 
 import type { Activity, DioramaId, EmoteKind, PokemonBundle, WorldHandle, WorldState } from "./api";
 import { localHours } from "./api";
+import type { Spot } from "./dioramas/types";
 import { createLighting, type Lighting } from "./lighting";
+import type { NavGrid } from "./nav/grid";
 
 export interface CreatureController {
-  moveTo(spot: string): Promise<boolean>;
+  moveTo(spot: string | Spot): Promise<boolean>;
   play(activity: Activity): void;
   emote(kind: EmoteKind): void;
   cry(): void;
   cancelMove(): void;
+  readonly isMoving: boolean;
+  readonly currentActivity: Activity;
+  /** Ground position, world units. */
+  readonly position: { x: number; z: number };
+  /** The cells this creature can travel, for its medium. */
+  readonly grid: NavGrid;
+  /** Where it stands when the trainer is here: the scene's subject spot, or the water nearest it. */
+  readonly homeSpot: Spot;
 }
+
+/** How long one tap keeps the pokemon up front. */
+export const ATTENTION_MS = 40_000;
+/** Activities the brain picks that mean "go somewhere" rather than a pose to hold in place. */
+const ROAMING: ReadonlySet<Activity> = new Set<Activity>(["walk", "swim", "fly"]);
 
 type Listener = () => void;
 
@@ -38,6 +53,8 @@ export class WorldStore {
     fading: false,
     ambient: true,
     depth: true,
+    attentionUntil: 0,
+    roamToken: 0,
   };
 
   /** The light rig as applied this frame; written by DayNight, read by water and grass. */
@@ -60,6 +77,7 @@ export class WorldStore {
     setTimeOfDay: (hours) => {
       this.state = { ...this.state, timeOfDay: ((hours % 24) + 24) % 24 };
     },
+    attend: (ms = ATTENTION_MS) => this.set({ attentionUntil: Math.max(this.state.attentionUntil, performance.now() + ms) }),
     setAmbient: (enabled) => {
       if (enabled !== this.state.ambient) this.set({ ambient: enabled });
     },
@@ -112,8 +130,19 @@ export class WorldStore {
   }
 
   private play(activity: Activity): void {
+    // "Walk" from the brain used to play the walk clip on the spot, a
+    // treadmill. It now asks the roaming loop for a real destination.
+    if (ROAMING.has(activity) && this.creature) {
+      this.set({ activity, roamToken: this.state.roamToken + 1 });
+      return;
+    }
     this.state = { ...this.state, activity };
     this.creature?.play(activity);
+  }
+
+  /** The active creature, for the roaming loop; null before one is attached. */
+  get controller(): CreatureController | null {
+    return this.creature;
   }
 
   private moveTo(spot: string): Promise<boolean> {

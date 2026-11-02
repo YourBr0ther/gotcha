@@ -67,6 +67,12 @@ export interface WorldHandle {
   setTimeOfDay(hours: number): void;
   /** Show or hide the ambient wild pokemon. Off is cheaper on a slow phone. */
   setAmbient(enabled: boolean): void;
+  /**
+   * The trainer is here: the pokemon comes up front and stays for a while.
+   * Called on every tap that touches it; when the calls stop it goes back
+   * to roaming the visible ground.
+   */
+  attend(ms?: number): void;
 }
 
 export interface WorldState {
@@ -92,6 +98,10 @@ export interface WorldState {
   ambient: boolean;
   /** The painted backdrop and weather particles; off is a few frames cheaper. */
   depth: boolean;
+  /** performance.now() until which the trainer counts as present; the pokemon stays up front until then. */
+  attentionUntil: number;
+  /** Increments when the brain asks the pokemon to go somewhere; the roaming loop picks a target on it. */
+  roamToken: number;
 }
 
 export function localHours(now = new Date()): number {

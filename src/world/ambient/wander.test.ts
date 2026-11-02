@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32 } from "../dioramas/build";
 import type { AirVolume } from "../dioramas/types";
 import { createNavGrid, setWalkable } from "../nav/grid";
-import { between, cellsWhere, inFrame, nextWanderTarget, onStage, planFlight, planGround, reachable, rimCells, TIMING } from "./wander";
+import { between, buddyStage, cellsWhere, inFrame, nextWanderTarget, onStage, planFlight, planGround, reachable, rimCells, TIMING } from "./wander";
 
 /** A 16x16 grid from (-8,-14) with the whole floor walkable except a 2x2 rock, and a far island nothing reaches. */
 function grid() {
@@ -164,5 +164,16 @@ describe("timing", () => {
       expect(gap).toBeLessThanOrEqual(TIMING.gap[1]);
     }
     expect(TIMING.gap[0]).toBeGreaterThan(TIMING.stay[0]);
+  });
+});
+
+describe("buddyStage", () => {
+  it("is the frame's wedge from just behind the subject to a few blocks back, centre included", () => {
+    const keep = buddyStage({ x: 0.5, z: 1.5 });
+    expect(keep(0.5, 1.5)).toBe(false); // on the spot itself
+    expect(keep(0.5, -1)).toBe(true); // straight back, centre strip allowed
+    expect(keep(2.5, -3.5)).toBe(true); // a forage spot
+    expect(keep(0.5, -8)).toBe(false); // too far to read on a phone
+    expect(keep(6, -1)).toBe(false); // outside the wedge
   });
 });

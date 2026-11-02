@@ -10,6 +10,7 @@ import { Diorama } from "./Diorama";
 import { FixedCamera } from "./FixedCamera";
 import { DebugOverlay, publishStats, StatsProbe, type StatsSample } from "./Stats";
 import { Ambient } from "./Ambient";
+import { Buddy } from "./Buddy";
 import { createWorldStore, FADE_MS } from "./store";
 import { Effects } from "./Effects";
 import { useWorldState, useWorldStore, WorldStoreContext } from "./WorldContext";
@@ -166,6 +167,7 @@ function WorldView({ debug, debugExtra, expectCreature = false, onFirstFrame, ch
           <DayNight />
           <Diorama />
           <Creature />
+          <Buddy />
           <Ambient />
           <PostChain />
           {showDebug && <StatsProbe onSample={onSample} />}

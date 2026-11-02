@@ -97,6 +97,20 @@ export function onStage(subject: Point): Keep {
   };
 }
 
+/**
+ * Where the trainer's own pokemon may roam while nobody is tapping: the
+ * frame's wedge from just behind its home spot to a few blocks back, centre
+ * strip included since it is the subject and hides nothing. Far enough back
+ * to read as wandering, near enough to stay big on a phone.
+ */
+export function buddyStage(subject: Point): Keep {
+  return (x, z) => {
+    if (z > subject.z - 1 || z < subject.z - 8) return false;
+    const depth = subject.z + CAMERA_BACK - z;
+    return Math.abs(x - subject.x) < FRAME * depth;
+  };
+}
+
 export interface GroundPlan {
   kind: "ground";
   entry: Spot;

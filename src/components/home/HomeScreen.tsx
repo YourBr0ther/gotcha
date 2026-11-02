@@ -133,7 +133,7 @@ export function HomeScreen() {
   const [view, setView] = useState<RichView | null>(null);
   const [catalog, setCatalog] = useState<StoreItem[]>([]);
   const [weather, setWeather] = useState<Weather | null>(null);
-  const [sheet, setSheet] = useState<CareKind | null>(null);
+  const [sheet, setSheetState] = useState<CareKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [deltas, setDeltas] = useState<Deltas>({});
   const [dialogue, setDialogue] = useState<Dialogue | null>(null);
@@ -149,6 +149,11 @@ export function HomeScreen() {
   const handleWaiters = useRef<Array<(h: WorldHandle) => void>>([]);
   const worldBox = useRef<HTMLDivElement>(null);
   const lastPet = useRef(0);
+  // Opening a care sheet is attention too: the pokemon comes up front for it.
+  const setSheet = useCallback((kind: CareKind | null) => {
+    if (kind) handleRef.current?.attend();
+    setSheetState(kind);
+  }, []);
 
   const onReady = useCallback((handle: WorldHandle) => {
     handleRef.current = handle;
@@ -230,6 +235,8 @@ export function HomeScreen() {
         if (!alive) return;
         setModelReady(true);
         handle.play(startAsleep.current ? "sleep" : "idle");
+        // Opening the app is a visit: it comes up front to say hello before it wanders.
+        handle.attend();
       } catch (e) {
         if (alive) toast(`Could not load ${species}: ${errorText(e)}`, "error");
       }
@@ -393,6 +400,7 @@ export function HomeScreen() {
 
   const care = useCallback(
     async (req: CareRequest, closeSheet = true) => {
+      handleRef.current?.attend();
       if (!view || busy) return;
       setBusy(true);
       try {
@@ -408,10 +416,11 @@ export function HomeScreen() {
         setBusy(false);
       }
     },
-    [view, busy, applyOutcome, toast],
+    [view, busy, applyOutcome, toast, setSheet],
   );
 
   const pet = useCallback(() => {
+      handleRef.current?.attend();
     if (!view || photo) return;
     const now = Date.now();
     if (now - lastPet.current < 1500) {
@@ -426,6 +435,7 @@ export function HomeScreen() {
   }, [view, photo, applyOutcome, toast]);
 
   const onTalk = useCallback((reply: TalkReply) => {
+      handleRef.current?.attend();
     const handle = handleRef.current;
     const emote = toEmote(reply.emote);
     if (handle && emote) handle.emote(emote);
