@@ -212,7 +212,7 @@ export function talkPrompt(ctx: TickContext, text: string): string {
 export const ROLLUP_SCHEMA_TEXT = [
   "Answer with one JSON object and nothing else:",
   "{",
-  `  "page": today's diary page: two to four short sentences, first person, only about what happened today, under ${PAGE_MAX_CHARS} characters; say the best thing and the hardest thing if there was one, and how you feel tonight,`,
+  `  "page": today's diary page: two to four short sentences, first person, only about what happened today, under ${PAGE_MAX_CHARS} characters; what mattered most, the hard part if there was one, and how you feel tonight; never say that something did not happen,`,
   `  "summary": the memory you carry forward, under ${SUMMARY_TARGET_CHARS} characters, three to six plain sentences: who your trainer is to you, how long you have been together, what still matters from before, how things stand lately; fold today in and let old detail fade, it is what you would still remember next month and not a diary,`,
   '  "feeling": one or two words for how today felt to you,',
   '  "callsThem": optional, a short name you use for the trainer,',
