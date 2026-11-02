@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import type { WorldHandle } from "./api";
@@ -26,6 +26,8 @@ export interface WorldProps {
   depth?: boolean;
   /** A creature is on its way: the first render waits longer for it, so its shaders compile with the scene's in one go. */
   expectCreature?: boolean;
+  /** Called once, when the first frame is about to draw; the page drops its loading cover on it. */
+  onFirstFrame?: () => void;
   /** Anything to float over the world, like the HUD. */
   children?: ReactNode;
   className?: string;
@@ -105,7 +107,7 @@ function useDocumentVisible(): boolean {
  * The whole diorama as one client component. Must be loaded with
  * `next/dynamic` and `ssr: false`; it touches the DOM on mount.
  */
-export default function World({ onReady, debug, debugExtra, depth = true, expectCreature = false, children, className }: WorldProps) {
+export default function World({ onReady, debug, debugExtra, depth = true, expectCreature = false, onFirstFrame, children, className }: WorldProps) {
   const store = useMemo(() => createWorldStore(), []);
 
   useEffect(() => {
@@ -116,17 +118,23 @@ export default function World({ onReady, debug, debugExtra, depth = true, expect
 
   return (
     <WorldStoreContext.Provider value={store}>
-      <WorldView debug={debug} debugExtra={debugExtra} expectCreature={expectCreature} className={className}>
+      <WorldView debug={debug} debugExtra={debugExtra} expectCreature={expectCreature} onFirstFrame={onFirstFrame} className={className}>
         {children}
       </WorldView>
     </WorldStoreContext.Provider>
   );
 }
 
-function WorldView({ debug, debugExtra, expectCreature = false, children, className }: Omit<WorldProps, "onReady" | "depth">) {
+function WorldView({ debug, debugExtra, expectCreature = false, onFirstFrame, children, className }: Omit<WorldProps, "onReady" | "depth">) {
   const store = useWorldStore();
   const visible = useDocumentVisible();
   const holding = useFirstRenderHold(expectCreature);
+  const announced = useRef(false);
+  useEffect(() => {
+    if (holding || announced.current) return;
+    announced.current = true;
+    onFirstFrame?.();
+  }, [holding, onFirstFrame]);
   const [urlDebug] = useState(debugFromUrl);
   const showDebug = debug ?? urlDebug;
   const [sample, setSample] = useState<StatsSample | null>(null);

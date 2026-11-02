@@ -24,19 +24,60 @@ import { MenuButton } from "./MenuButton";
 import { Microphone, type TalkReply } from "./Microphone";
 import { StarterPicker } from "./StarterPicker";
 
+const SKY = "bg-[linear-gradient(180deg,#5fa8e0_0%,#87c9a2_45%,#3f7a3a_75%,#28491f_100%)]";
+
 const World = dynamic(() => import("@/world/World"), {
   ssr: false,
-  loading: () => <WorldPlaceholder text="Loading the world" />,
+  // The cover above hides this; it only has to not be black.
+  loading: () => <div className={`absolute inset-0 ${SKY}`} />,
 });
 
 function WorldPlaceholder({ text }: { text: string }) {
   return (
-    <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(180deg,#5fa8e0_0%,#87c9a2_45%,#3f7a3a_75%,#28491f_100%)]">
+    <div className={`absolute inset-0 grid place-items-center ${SKY}`}>
       <div className="card flex items-center gap-3 px-4 py-3">
         <span className="bob">
           <PixelIcon name="pokeball" size={28} />
         </span>
         <span className="font-pixel text-sm">{text}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One painted cover from the first paint until the world's first frame:
+ * the pokemon's face bobbing over the sky, its name once the party is
+ * known. Fades over the live scene. Before this there were two cards in a
+ * row ("Finding your trainer card", then "Loading Maddie's meadow") over a
+ * black canvas, and a one-second load felt like two steps.
+ */
+function LoadCover({ show, species, label }: { show: boolean; species: string | null; label: string | null }) {
+  const [broken, setBroken] = useState(false);
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    if (show) return;
+    const timer = setTimeout(() => setGone(true), 500);
+    return () => clearTimeout(timer);
+  }, [show]);
+  if (gone) return null;
+  return (
+    <div
+      aria-hidden={!show}
+      role={show ? "status" : undefined}
+      className={`absolute inset-0 z-30 grid place-items-center ${SKY} transition-opacity duration-500 ease-out`}
+      style={{ opacity: show ? 1 : 0, pointerEvents: show ? "auto" : "none" }}
+    >
+      <div className="flex flex-col items-center gap-3">
+        <span className="bob">
+          {species && !broken ? (
+            // eslint-disable-next-line @next/next/no-img-element -- portraits come from the data volume, not next/image.
+            <img src={`/api/assets/portraits/${species}`} alt="" width={96} height={96} decoding="async" onError={() => setBroken(true)} className="h-24 w-24 rounded-2xl bg-white/15 object-cover shadow-[0_6px_0_rgb(0_0_0/0.25)]" />
+          ) : (
+            <PixelIcon name="pokeball" size={56} />
+          )}
+        </span>
+        <span className="font-pixel text-sm text-white drop-shadow-[0_2px_0_rgb(0_0_0/0.5)]">{label ?? "\u00a0"}</span>
       </div>
     </div>
   );
@@ -98,6 +139,9 @@ export function HomeScreen() {
   const [dialogue, setDialogue] = useState<Dialogue | null>(null);
   const [photo, setPhoto] = useState(false);
   const [modelReady, setModelReady] = useState(false);
+  // Latched once: later pokemon swaps render into a live scene and never bring the cover back.
+  const [worldShown, setWorldShown] = useState(false);
+  const onFirstFrame = useCallback(() => setWorldShown(true), []);
   const [starterOpen, setStarterOpen] = useState(true);
   // `?debug=1` shows the world's stats overlay. Read from the location, not useSearchParams, so the page needs no Suspense boundary.
   const debug = useSyncExternalStore(subscribeNothing, readDebugFlag, () => false);
@@ -442,7 +486,7 @@ export function HomeScreen() {
       {phase === "error" ? (
         <WorldPlaceholder text="The meadow is out of reach" />
       ) : (
-        <World onReady={onReady} debug={debug} expectCreature={phase === "world"}>
+        <World onReady={onReady} debug={debug} expectCreature={phase === "world"} onFirstFrame={onFirstFrame}>
           {/* Tap zone over where the pokemon stands; petting needs no hit test on the model. */}
           {phase === "world" && !photo ? (
             <button
@@ -457,7 +501,7 @@ export function HomeScreen() {
         </World>
       )}
 
-      {phase === "loading" ? <WorldPlaceholder text="Finding your trainer card" /> : null}
+      {phase !== "error" ? <LoadCover show={phase === "loading" || !worldShown} species={view?.species ?? null} label={view ? `${view.name}'s ${dioramaLabel}` : null} /> : null}
 
       {phase === "starter" ? (
         <>
@@ -536,7 +580,7 @@ export function HomeScreen() {
             </div>
           </div>
 
-          {!modelReady ? (
+          {!modelReady && worldShown ? (
             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
               <div className="card flex items-center gap-2 px-3 py-2">
                 <span className="bob">
