@@ -28,7 +28,8 @@ export type ServiceErrorCode =
   | "trade_mismatch"
   | "trade_expired"
   | "unverified_file"
-  | "signing_unavailable";
+  | "signing_unavailable"
+  | "name_taken";
 
 const STATUS: Record<ServiceErrorCode, number> = {
   unauthenticated: 401,
@@ -37,6 +38,7 @@ const STATUS: Record<ServiceErrorCode, number> = {
   unknown_item: 404,
   unknown_action: 400,
   bad_request: 400,
+  name_taken: 409,
   party_full: 409,
   box_full: 409,
   box_slot_taken: 409,

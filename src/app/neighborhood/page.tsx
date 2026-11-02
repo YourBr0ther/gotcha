@@ -35,7 +35,10 @@ export default function NeighborhoodPage() {
             <li key={t.id} className="card flex items-center gap-3 px-3 py-3">
               {t.activePokemon ? <Face species={t.activePokemon.species} size={48} /> : <PixelIcon name="pokeball" size={40} className="opacity-40" />}
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="text-base font-extrabold">{t.name}</span>
+                <span className="flex items-baseline gap-1.5">
+                  <span className="text-base font-extrabold">{t.name}</span>
+                  {t.username.toLowerCase() !== t.name.toLowerCase() ? <span className="font-pixel text-[10px] text-ink-faint">@{t.username}</span> : null}
+                </span>
                 {t.activePokemon ? (
                   <>
                     <span className="text-xs text-ink-dim">

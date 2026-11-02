@@ -12,6 +12,8 @@ import { activeSummary, type ActivePokemonSummary } from "./views";
 export interface TrainerSummary {
   id: string;
   name: string;
+  /** The login the proxy vouches for, shown beside the chosen name so a name alone never identifies anyone. */
+  username: string;
   activePokemon: ActivePokemonSummary | null;
 }
 
@@ -35,10 +37,29 @@ export async function getTrainer(db: DbOrTx, trainerId: string): Promise<Trainer
   return row;
 }
 
-/** The name the pokemon use for the trainer and the neighborhood shows. */
+/** A display name as stored: Unicode-normalised, control and direction-override characters gone, spaces squeezed, 24 characters at most. */
+export function cleanDisplayName(name: string): string {
+  return name
+    .normalize("NFKC")
+    .replace(/[\p{Cc}\p{Cf}]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 24)
+    .trim();
+}
+
+/**
+ * The name the pokemon use for the trainer and the neighborhood shows. A
+ * name another trainer in the install already uses is refused, compared
+ * case-insensitively after cleaning, so one child cannot pass as another;
+ * the neighborhood shows the login beside the name as well.
+ */
 export async function setDisplayName(db: DbOrTx, trainerId: string, name: string): Promise<TrainerRow> {
-  const clean = name.trim().slice(0, 24);
+  const clean = cleanDisplayName(name);
   if (!clean) throw new ServiceError("bad_request", "name is empty");
+  const others = await db.query.trainer.findMany({ where: sql`${schema.trainer.id} <> ${trainerId}` });
+  const taken = others.some((t) => cleanDisplayName(t.displayName).toLowerCase() === clean.toLowerCase() || t.username.toLowerCase() === clean.toLowerCase());
+  if (taken) throw new ServiceError("name_taken", "someone in the family already goes by that name");
   const [row] = await db.update(schema.trainer).set({ displayName: clean }).where(eq(schema.trainer.id, trainerId)).returning();
   if (!row) throw new ServiceError("not_found", "trainer not found");
   return row;
@@ -65,7 +86,7 @@ export async function listTrainers(db: DbOrTx, now: string): Promise<TrainerSumm
   const out: TrainerSummary[] = [];
   for (const t of trainers) {
     const active = byTrainer.get(t.id);
-    out.push({ id: t.id, name: t.displayName, activePokemon: active ? await activeSummary(active, t, now) : null });
+    out.push({ id: t.id, name: t.displayName, username: t.username, activePokemon: active ? await activeSummary(active, t, now) : null });
   }
   return out;
 }
